@@ -116,7 +116,7 @@ function BracketPredict() {
         {ids.map((id) => {
           const m = matchById[id];
           if (!m) return null;
-          return <MatchCard key={id} match={m} onPick={(team) => pick(id, team)} />;
+          return <MatchCard key={id} match={m} locked={locked} onPick={(team) => pick(id, team)} />;
         })}
       </div>
     </div>
@@ -132,13 +132,26 @@ function BracketPredict() {
             <p className="text-muted-foreground">Click a team to pick the winner. Winners automatically advance.</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">← Edit groups</button>
-            <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">Reset all picks</button>
-            <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {submitting ? "Saving…" : "Submit predictions"}
-            </button>
+            <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">{locked ? "← View groups" : "← Edit groups"}</button>
+            {!locked && (
+              <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">Reset all picks</button>
+            )}
+            {!locked && (
+              <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {submitting ? "Saving…" : "Submit predictions"}
+              </button>
+            )}
+            {locked && (
+              <button onClick={() => navigate({ to: "/leaderboard" })} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm">View leaderboard →</button>
+            )}
           </div>
         </div>
+
+        {locked && (
+          <div className="mb-6 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
+            🔒 Your predictions have been submitted and are locked. Viewing only.
+          </div>
+        )}
 
         {champion && (
           <div className="mb-6 p-4 rounded-lg border border-primary/40 bg-primary/5 text-center">
@@ -161,9 +174,9 @@ function BracketPredict() {
   );
 }
 
-function MatchCard({ match, onPick }: { match: BracketMatch; onPick: (team: string) => void }) {
+function MatchCard({ match, onPick, locked }: { match: BracketMatch; onPick: (team: string) => void; locked?: boolean }) {
   const row = (team: string | null, label: string) => {
-    const disabled = !team;
+    const disabled = !team || !!locked;
     const selected = team && match.winner === team;
     return (
       <button

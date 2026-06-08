@@ -1,0 +1,28 @@
+// Lightweight client-side "session" — name-only, no auth
+const USER_KEY = "wc.user";
+const GROUPS_KEY = "wc.groupRankings";
+const PICKS_KEY = "wc.knockoutPicks";
+
+export interface LocalUser { userId: number; name: string }
+
+export function getUser(): LocalUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as LocalUser) : null;
+  } catch { return null; }
+}
+export function setUser(u: LocalUser) { localStorage.setItem(USER_KEY, JSON.stringify(u)); }
+export function clearUser() { localStorage.removeItem(USER_KEY); }
+
+export function loadGroups(): Record<string, string[]> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "{}"); } catch { return {}; }
+}
+export function saveGroups(g: Record<string, string[]>) { localStorage.setItem(GROUPS_KEY, JSON.stringify(g)); }
+
+export function loadPicks(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(localStorage.getItem(PICKS_KEY) ?? "{}"); } catch { return {}; }
+}
+export function savePicks(p: Record<string, string>) { localStorage.setItem(PICKS_KEY, JSON.stringify(p)); }

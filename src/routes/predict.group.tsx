@@ -68,6 +68,13 @@ function GroupPredict() {
           </button>
         </div>
 
+        {locked && (
+          <div className="mb-4 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
+            🔒 Your predictions have been submitted and are locked. Viewing only.
+          </div>
+        )}
+
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {GROUP_LETTERS.map((g) => (
             <div key={g} className="rounded-lg border border-border bg-card p-4">
@@ -79,7 +86,7 @@ function GroupPredict() {
                     <span className="flex-1 truncate text-sm">{team}</span>
                     <button
                       onClick={() => move(g, idx, -1)}
-                      disabled={idx === 0}
+                      disabled={idx === 0 || locked}
                       className="p-1 rounded hover:bg-accent disabled:opacity-30"
                       aria-label="Move up"
                     >
@@ -87,7 +94,7 @@ function GroupPredict() {
                     </button>
                     <button
                       onClick={() => move(g, idx, 1)}
-                      disabled={idx === 3}
+                      disabled={idx === 3 || locked}
                       className="p-1 rounded hover:bg-accent disabled:opacity-30"
                       aria-label="Move down"
                     >

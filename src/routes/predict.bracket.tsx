@@ -25,11 +25,13 @@ function BracketPredict() {
   const [rankings, setRankings] = useState<Record<string, string[]> | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     const u = getUser();
     if (!u) { navigate({ to: "/" }); return; }
     setUserState(u);
+    setLocked(isSubmitted());
     const g = loadGroups();
     if (!g || Object.keys(g).length !== 12) {
       // initialize defaults from GROUPS
@@ -54,7 +56,7 @@ function BracketPredict() {
   }, [bracket]);
 
   const pick = (id: string, team: string | null) => {
-    if (!team) return;
+    if (!team || locked) return;
     const next = { ...picks, [id]: team };
     // clear downstream picks that referenced the previous winner
     const downstreamMap: Record<string, string> = {};
@@ -81,17 +83,20 @@ function BracketPredict() {
   };
 
   const resetAll = () => {
+    if (locked) return;
     if (!confirm("Clear all knockout picks?")) return;
     setPicks({});
     savePicks({});
   };
 
   const submit = async () => {
-    if (!user || !rankings) return;
+    if (!user || !rankings || locked) return;
     setSubmitting(true);
     try {
       const res = await save({ data: { userId: user.userId, groupRankings: rankings, knockoutPicks: picks } });
-      toast.success(`Predictions saved! Current points: ${res.points}`);
+      setSubmitted(true);
+      setLocked(true);
+      toast.success(`Predictions submitted and locked! Current points: ${res.points}`);
       navigate({ to: "/leaderboard" });
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to save predictions.");

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GROUPS, GROUP_LETTERS } from "@/lib/wc/groupsData";
-import { getUser, loadGroups, saveGroups } from "@/lib/wc/session";
+import { getUser, loadGroups, saveGroups, isSubmitted } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
@@ -25,16 +25,19 @@ function GroupPredict() {
   const navigate = useNavigate();
   const [user, setUserState] = useState<ReturnType<typeof getUser>>(null);
   const [rankings, setRankings] = useState<Record<string, string[]>>(defaultRankings);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     const u = getUser();
     if (!u) { navigate({ to: "/" }); return; }
     setUserState(u);
+    setLocked(isSubmitted());
     const saved = loadGroups();
     if (saved && Object.keys(saved).length === 12) setRankings(saved);
   }, [navigate]);
 
   const move = (g: string, idx: number, dir: -1 | 1) => {
+    if (locked) return;
     const arr = [...rankings[g]];
     const j = idx + dir;
     if (j < 0 || j >= arr.length) return;

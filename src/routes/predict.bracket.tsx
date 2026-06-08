@@ -7,6 +7,7 @@ import { getUser, loadGroups, loadPicks, savePicks, isSubmitted, setSubmitted } 
 import { savePredictions } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
+import { Trophy } from "lucide-react";
 
 export const Route = createFileRoute("/predict/bracket")({
   head: () => ({

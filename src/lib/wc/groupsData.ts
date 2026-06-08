@@ -1,16 +1,16 @@
 export const GROUPS: Record<string, string[]> = {
-  A: ["Korea Republic", "Switzerland", "Brazil", "Mexico"],
-  B: ["Canada", "Morocco", "Czechia", "Qatar"],
-  C: ["Scotland", "South Africa", "Bosnia-Herzegovina", "Haiti"],
-  D: ["Turkiye", "Germany", "Netherlands", "Paraguay"],
-  E: ["Ecuador", "Japan", "Australia", "Ivory Coast"],
-  F: ["Tunisia", "USA", "Curacao", "Sweden"],
-  G: ["Belgium", "Spain", "France", "Egypt"],
-  H: ["Uruguay", "Norway", "New Zealand", "Saudi Arabia"],
-  I: ["Senegal", "Iran", "Cabo Verde", "Iraq"],
-  J: ["Argentina", "Portugal", "England", "Austria"],
-  K: ["Colombia", "Croatia", "Jordan", "Uzbekistan"],
-  L: ["Ghana", "Algeria", "DR Congo", "Panama"],
+  A: ["Mexico", "South Africa", "Korea Republic", "Czechia"],
+  B: ["Canada", "Bosnia and Herzegovina", "Qatar", "Switzerland"],
+  C: ["Brazil", "Morocco", "Haiti", "Scotland"],
+  D: ["United States", "Paraguay", "Australia", "Turkiye"],
+  E: ["Germany", "Curaçao", "Ivory Coast", "Ecuador"],
+  F: ["Netherlands", "Japan", "Sweden", "Tunisia"],
+  G: ["Belgium", "Egypt", "Iran", "New Zealand"],
+  H: ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
+  I: ["France", "Senegal", "Iraq", "Norway"],
+  J: ["Argentina", "Algeria", "Austria", "Jordan"],
+  K: ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+  L: ["England", "Croatia", "Ghana", "Panama"],
 };
 
 export const GROUP_LETTERS = Object.keys(GROUPS);

@@ -56,10 +56,10 @@ function Index() {
           <Trophy className="h-8 w-8 text-primary" />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-          Predict the 2026 FIFA World Cup
+          Hai cu predictiile alea!!!
         </h1>
         <p className="mt-4 text-muted-foreground text-lg">
-          48 teams. 12 groups. One bracket. Rank every group, fill out the knockout rounds, and climb the leaderboard.
+          Hai sa castige Senegal
         </p>
 
         <form onSubmit={submit} className="mt-10 max-w-md mx-auto flex flex-col gap-3">
@@ -81,7 +81,6 @@ function Index() {
           >
             {loading ? "Starting…" : "Start predicting"}
           </button>
-          <p className="text-xs text-muted-foreground">No password — names are unique. Re-enter your name on another device to load your entry.</p>
         </form>
       </main>
     </div>

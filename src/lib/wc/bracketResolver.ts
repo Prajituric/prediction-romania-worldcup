@@ -159,14 +159,23 @@ export function resolveR32(rankings: GroupRankings): ResolvedR32Match[] {
       return { team: null, label: "Best 3rd" };
     }
     if (spec.kind === "remainingRunner") {
-      const remaining = GROUP_LETTERS
+      // Try a runner-up first; if none remain (all 12 are placed in R32_1..R32_15),
+      // fall back to the next-best remaining qualified team (a 3rd-place team).
+      const remainingRunners = GROUP_LETTERS
         .map((g) => byGroup[g]?.runner as QualifiedTeam | undefined)
         .filter((t): t is QualifiedTeam => !!t && !usedTeams.has(t.team));
-      remaining.sort((a, b) => a.team.localeCompare(b.team));
-      const t = remaining[0];
-      if (t) {
+      if (remainingRunners.length > 0) {
+        remainingRunners.sort((a, b) => a.team.localeCompare(b.team));
+        const t = remainingRunners[0];
         usedTeams.add(t.team);
         return { team: t.team, label: "Remaining 2nd" };
+      }
+      const remainingThirds = qualifiedThirds.filter((t) => !usedTeams.has(t.team));
+      remainingThirds.sort((a, b) => (b.points - a.points) || a.team.localeCompare(b.team));
+      const t = remainingThirds[0];
+      if (t) {
+        usedTeams.add(t.team);
+        return { team: t.team, label: "Best remaining 3rd" };
       }
       return { team: null, label: "Remaining 2nd" };
     }

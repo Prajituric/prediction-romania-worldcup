@@ -2,6 +2,16 @@
 const USER_KEY = "wc.user";
 const GROUPS_KEY = "wc.groupRankings";
 const PICKS_KEY = "wc.knockoutPicks";
+const SUBMITTED_KEY = "wc.submitted";
+
+export function isSubmitted(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(SUBMITTED_KEY) === "1";
+}
+export function setSubmitted(v: boolean) {
+  if (v) localStorage.setItem(SUBMITTED_KEY, "1");
+  else localStorage.removeItem(SUBMITTED_KEY);
+}
 
 export interface LocalUser { userId: number; name: string }
 

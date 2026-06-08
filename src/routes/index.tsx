@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { registerUser } from "@/lib/wc/predictions.functions";
-import { setUser, getUser } from "@/lib/wc/session";
+import { setUser, getUser, setSubmitted, saveGroups, savePicks } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { Trophy } from "lucide-react";
 
@@ -32,6 +32,13 @@ function Index() {
     setLoading(true);
     try {
       const res = await register({ data: { name: name.trim() } });
+      const prev = getUser();
+      if (!prev || prev.userId !== res.userId) {
+        // New user on this device — reset local progress + submission lock.
+        setSubmitted(false);
+        saveGroups({});
+        savePicks({});
+      }
       setUser({ userId: res.userId, name: res.name });
       navigate({ to: "/predict/group" });
     } catch (err: any) {

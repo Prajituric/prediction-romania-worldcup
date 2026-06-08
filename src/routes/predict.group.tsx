@@ -138,7 +138,7 @@ function GroupPredict() {
                   )}
                 </div>
                 <ul className="p-2 space-y-1.5">
-                  {GROUPS[g].map((team) => {
+                  {[...picks, ...GROUPS[g].filter((t) => !picks.includes(t))].map((team) => {
                     const idx = picks.indexOf(team);
                     const isRanked = idx >= 0;
                     const isFourthAuto = isRanked && idx === 3;

@@ -9,38 +9,101 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PredictGroupRouteImport } from './routes/predict.group'
+import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
+import { Route as AdminResultsRouteImport } from './routes/admin.results'
 
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PredictGroupRoute = PredictGroupRouteImport.update({
+  id: '/predict/group',
+  path: '/predict/group',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PredictBracketRoute = PredictBracketRouteImport.update({
+  id: '/predict/bracket',
+  path: '/predict/bracket',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminResultsRoute = AdminResultsRouteImport.update({
+  id: '/admin/results',
+  path: '/admin/results',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/admin/results': typeof AdminResultsRoute
+  '/predict/bracket': typeof PredictBracketRoute
+  '/predict/group': typeof PredictGroupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/admin/results': typeof AdminResultsRoute
+  '/predict/bracket': typeof PredictBracketRoute
+  '/predict/group': typeof PredictGroupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/leaderboard': typeof LeaderboardRoute
+  '/admin/results': typeof AdminResultsRoute
+  '/predict/bracket': typeof PredictBracketRoute
+  '/predict/group': typeof PredictGroupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/leaderboard'
+    | '/admin/results'
+    | '/predict/bracket'
+    | '/predict/group'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/leaderboard'
+    | '/admin/results'
+    | '/predict/bracket'
+    | '/predict/group'
+  id:
+    | '__root__'
+    | '/'
+    | '/leaderboard'
+    | '/admin/results'
+    | '/predict/bracket'
+    | '/predict/group'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LeaderboardRoute: typeof LeaderboardRoute
+  AdminResultsRoute: typeof AdminResultsRoute
+  PredictBracketRoute: typeof PredictBracketRoute
+  PredictGroupRoute: typeof PredictGroupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,12 +111,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/predict/group': {
+      id: '/predict/group'
+      path: '/predict/group'
+      fullPath: '/predict/group'
+      preLoaderRoute: typeof PredictGroupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/predict/bracket': {
+      id: '/predict/bracket'
+      path: '/predict/bracket'
+      fullPath: '/predict/bracket'
+      preLoaderRoute: typeof PredictBracketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/results': {
+      id: '/admin/results'
+      path: '/admin/results'
+      fullPath: '/admin/results'
+      preLoaderRoute: typeof AdminResultsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LeaderboardRoute: LeaderboardRoute,
+  AdminResultsRoute: AdminResultsRoute,
+  PredictBracketRoute: PredictBracketRoute,
+  PredictGroupRoute: PredictGroupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

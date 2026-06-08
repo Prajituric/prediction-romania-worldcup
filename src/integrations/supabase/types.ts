@@ -14,7 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      actual_results: {
+        Row: {
+          group_rankings_actual: Json
+          id: number
+          knockout_results_actual: Json
+          updated_at: string
+        }
+        Insert: {
+          group_rankings_actual: Json
+          id?: number
+          knockout_results_actual: Json
+          updated_at?: string
+        }
+        Update: {
+          group_rankings_actual?: Json
+          id?: number
+          knockout_results_actual?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      predictions: {
+        Row: {
+          created_at: string
+          group_rankings: Json
+          id: number
+          knockout_picks: Json
+          points: number
+          user_id: number
+        }
+        Insert: {
+          created_at?: string
+          group_rankings: Json
+          id?: number
+          knockout_picks: Json
+          points?: number
+          user_id: number
+        }
+        Update: {
+          created_at?: string
+          group_rankings?: Json
+          id?: number
+          knockout_picks?: Json
+          points?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

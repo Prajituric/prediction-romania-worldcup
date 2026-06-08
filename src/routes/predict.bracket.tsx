@@ -108,10 +108,28 @@ function BracketPredict() {
   if (!user || !rankings) return null;
 
   const champion = matchById[FINAL_ID]?.winner ?? null;
+  const finalMatch = matchById[FINAL_ID];
 
-  const renderColumn = (ids: string[], title: string) => (
-    <div className="flex flex-col gap-3 min-w-[200px]">
-      <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{title}</h3>
+  // Split into mirrored halves: matches 1..N/2 on the left, N/2+1..N on the right
+  const half = (arr: string[]) => {
+    const h = arr.length / 2;
+    return [arr.slice(0, h), arr.slice(h)] as const;
+  };
+  const [r32L, r32R] = half(R32_IDS);
+  const [r16L, r16R] = half(R16_IDS);
+  const [qfL, qfR] = half(QF_IDS);
+  const [sfL, sfR] = [[SF_IDS[0]], [SF_IDS[1]]];
+
+  const renderColumn = (ids: string[], title: string, align: "left" | "right") => (
+    <div className="flex flex-col gap-2 min-w-[170px] flex-1">
+      <h3
+        className={[
+          "text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold",
+          align === "right" ? "text-right" : "text-left",
+        ].join(" ")}
+      >
+        {title}
+      </h3>
       <div className="flex flex-col justify-around flex-1 gap-3">
         {ids.map((id) => {
           const m = matchById[id];
@@ -125,7 +143,7 @@ function BracketPredict() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1400px] mx-auto px-4 py-8">
+      <main className="max-w-[1600px] mx-auto px-4 py-8">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
           <div>
             <h1 className="text-3xl font-bold">Knockout Bracket</h1>
@@ -153,20 +171,43 @@ function BracketPredict() {
           </div>
         )}
 
-        {champion && (
-          <div className="mb-6 p-4 rounded-lg border border-primary/40 bg-primary/5 text-center">
-            <div className="text-sm text-muted-foreground">Your predicted champion</div>
-            <div className="text-2xl font-bold text-primary">🏆 {champion}</div>
-          </div>
-        )}
-
         <div className="overflow-x-auto">
-          <div className="flex gap-6 min-w-fit pb-4">
-            {renderColumn(R32_IDS, "Round of 32")}
-            {renderColumn(R16_IDS, "Round of 16")}
-            {renderColumn(QF_IDS, "Quarter-finals")}
-            {renderColumn(SF_IDS, "Semi-finals")}
-            {renderColumn([FINAL_ID], "Final")}
+          <div className="flex items-stretch gap-3 min-w-[1400px] pb-4">
+            {/* Left half */}
+            <div className="flex gap-3 flex-1">
+              {renderColumn(r32L, "Round of 32", "left")}
+              {renderColumn(r16L, "Round of 16", "left")}
+              {renderColumn(qfL, "Quarter-finals", "left")}
+              {renderColumn(sfL, "Semi-final", "left")}
+            </div>
+
+            {/* Center: Final + Champion */}
+            <div className="flex flex-col items-center justify-center gap-4 min-w-[220px] px-2">
+              <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Final</h3>
+              {finalMatch && (
+                <div className="w-full">
+                  <MatchCard match={finalMatch} locked={locked} onPick={(team) => pick(FINAL_ID, team)} />
+                </div>
+              )}
+              <Trophy className="h-10 w-10 text-primary" />
+              <div className={[
+                "w-full rounded-lg border-2 px-4 py-5 text-center",
+                champion ? "border-primary bg-primary/10" : "border-dashed border-border bg-card/50",
+              ].join(" ")}>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Champion</div>
+                <div className={["text-lg font-bold uppercase tracking-wide", champion ? "text-primary" : "text-muted-foreground italic"].join(" ")}>
+                  {champion ?? "TBD"}
+                </div>
+              </div>
+            </div>
+
+            {/* Right half — mirrored */}
+            <div className="flex gap-3 flex-1 flex-row-reverse">
+              {renderColumn(r32R, "Round of 32", "right")}
+              {renderColumn(r16R, "Round of 16", "right")}
+              {renderColumn(qfR, "Quarter-finals", "right")}
+              {renderColumn(sfR, "Semi-final", "right")}
+            </div>
           </div>
         </div>
       </main>

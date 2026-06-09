@@ -12,7 +12,7 @@ export function SiteHeader() {
         <nav className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
           <Link to="/predict/group" className="hover:text-primary">Groups</Link>
           <Link to="/predict/bracket" className="hover:text-primary">Bracket</Link>
-          <Link to="/leaderboard" className="hover:text-primary">Board</Link>
+          <Link to="/leaderboard" className="hover:text-primary">Ranking</Link>
           <Link to="/admin/results" className="hover:text-primary text-muted-foreground hidden sm:inline">Admin</Link>
         </nav>
       </div>

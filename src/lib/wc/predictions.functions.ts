@@ -1,7 +1,68 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { ALL_KO_IDS, GROUPS, GROUP_LETTERS, type GroupRankings, type KnockoutPicks } from "./groupsData";
+import { ALL_KO_IDS, FINAL_ID, GROUPS, GROUP_LETTERS, type GroupRankings, type KnockoutPicks } from "./groupsData";
 import { buildFullBracket } from "./bracketResolver";
+
+// --- Scoring constants ---
+// Group stage: 3 pts for 1st correct, 2 for 2nd, 1 for 3rd, 0 for 4th
+const GROUP_POSITION_POINTS = [3, 2, 1, 0];
+// Perfect bracket bonus: +50 if all 31 knockout matches correct
+const PERFECT_BRACKET_BONUS = 50;
+// Champion bonus: +5 if Final winner correctly predicted
+const CHAMPION_BONUS = 5;
+
+export interface ScoreBreakdown {
+  groupPoints: number;    // max 72
+  knockoutPoints: number; // max 31
+  perfectBonus: number;   // 0 or 50
+  championBonus: number;  // 0 or 5
+  total: number;
+}
+
+function calculatePoints(
+  userGroupRankings: GroupRankings,
+  userKnockoutPicks: KnockoutPicks,
+  actualGroupRankings: GroupRankings,
+  actualKnockoutResults: KnockoutPicks,
+): ScoreBreakdown {
+  // Group stage points
+  let groupPoints = 0;
+  for (const g of GROUP_LETTERS) {
+    const user = userGroupRankings[g];
+    const actual = actualGroupRankings[g];
+    if (!user || !actual) continue;
+    for (let pos = 0; pos < 4; pos++) {
+      if (user[pos] === actual[pos]) groupPoints += GROUP_POSITION_POINTS[pos];
+    }
+  }
+
+  // Knockout points
+  let knockoutPoints = 0;
+  for (const id of ALL_KO_IDS) {
+    if (actualKnockoutResults[id] && userKnockoutPicks[id] && actualKnockoutResults[id] === userKnockoutPicks[id]) {
+      knockoutPoints++;
+    }
+  }
+
+  // Perfect bracket bonus
+  const perfectBonus = knockoutPoints === ALL_KO_IDS.length ? PERFECT_BRACKET_BONUS : 0;
+
+  // Champion bonus (+5 if Final winner correct, on top of the 1pt for the match)
+  const championBonus =
+    actualKnockoutResults[FINAL_ID] &&
+    userKnockoutPicks[FINAL_ID] &&
+    actualKnockoutResults[FINAL_ID] === userKnockoutPicks[FINAL_ID]
+      ? CHAMPION_BONUS
+      : 0;
+
+  return {
+    groupPoints,
+    knockoutPoints,
+    perfectBonus,
+    championBonus,
+    total: groupPoints + knockoutPoints + perfectBonus + championBonus,
+  };
+}
 
 function validateGroupRankings(gr: any): gr is GroupRankings {
   if (!gr || typeof gr !== "object") return false;
@@ -40,12 +101,14 @@ export const savePredictions = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     // Compute points if actual results exist
     const actual = await supabaseAdmin.from("actual_results").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle();
-    let points = 0;
+    let breakdown: ScoreBreakdown = { groupPoints: 0, knockoutPoints: 0, perfectBonus: 0, championBonus: 0, total: 0 };
     if (actual.data) {
-      const ko = actual.data.knockout_results_actual as Record<string, string>;
-      for (const id of ALL_KO_IDS) {
-        if (ko[id] && data.knockoutPicks[id] && ko[id] === data.knockoutPicks[id]) points++;
-      }
+      breakdown = calculatePoints(
+        data.groupRankings,
+        data.knockoutPicks,
+        actual.data.group_rankings_actual as GroupRankings,
+        actual.data.knockout_results_actual as KnockoutPicks,
+      );
     }
 
     const existing = await supabaseAdmin.from("predictions").select("id").eq("user_id", data.userId).maybeSingle();
@@ -53,7 +116,7 @@ export const savePredictions = createServerFn({ method: "POST" })
       const upd = await supabaseAdmin.from("predictions").update({
         group_rankings: data.groupRankings,
         knockout_picks: data.knockoutPicks,
-        points,
+        points: breakdown.total,
       }).eq("id", existing.data.id);
       if (upd.error) throw new Error(upd.error.message);
     } else {
@@ -61,11 +124,11 @@ export const savePredictions = createServerFn({ method: "POST" })
         user_id: data.userId,
         group_rankings: data.groupRankings,
         knockout_picks: data.knockoutPicks,
-        points,
+        points: breakdown.total,
       });
       if (ins.error) throw new Error(ins.error.message);
     }
-    return { ok: true, points };
+    return { ok: true, points: breakdown.total, breakdown };
   });
 
 export const getLeaderboard = createServerFn({ method: "GET" }).handler(async () => {
@@ -75,6 +138,7 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
     .order("points", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map((r: any) => ({
+    userId: r.user_id as number,
     name: r.users?.name ?? "Unknown",
     points: r.points ?? 0,
   }));
@@ -124,16 +188,17 @@ export const adminSetActualResults = createServerFn({ method: "POST" })
     });
     if (ins.error) throw new Error(ins.error.message);
 
-    // Recalculate all
-    const all = await supabaseAdmin.from("predictions").select("id, knockout_picks");
+    // Recalculate all users' points with new scoring system
+    const all = await supabaseAdmin.from("predictions").select("id, group_rankings, knockout_picks");
     if (all.data) {
       for (const row of all.data as any[]) {
-        let points = 0;
-        const picks = row.knockout_picks as KnockoutPicks;
-        for (const id of ALL_KO_IDS) {
-          if (data.knockoutActual[id] && picks[id] && data.knockoutActual[id] === picks[id]) points++;
-        }
-        await supabaseAdmin.from("predictions").update({ points }).eq("id", row.id);
+        const breakdown = calculatePoints(
+          row.group_rankings as GroupRankings,
+          row.knockout_picks as KnockoutPicks,
+          data.groupActual,
+          data.knockoutActual,
+        );
+        await supabaseAdmin.from("predictions").update({ points: breakdown.total }).eq("id", row.id);
       }
     }
     return { ok: true };

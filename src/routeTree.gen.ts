@@ -13,6 +13,7 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PredictGroupRouteImport } from './routes/predict.group'
 import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
+import { Route as LeaderboardUserIdRouteImport } from './routes/leaderboard.$userId'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
 
 const LeaderboardRoute = LeaderboardRouteImport.update({
@@ -35,6 +36,11 @@ const PredictBracketRoute = PredictBracketRouteImport.update({
   path: '/predict/bracket',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LeaderboardUserIdRoute = LeaderboardUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => LeaderboardRoute,
+} as any)
 const AdminResultsRoute = AdminResultsRouteImport.update({
   id: '/admin/results',
   path: '/admin/results',
@@ -43,23 +49,26 @@ const AdminResultsRoute = AdminResultsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/leaderboard': typeof LeaderboardRoute
+  '/leaderboard': typeof LeaderboardRouteWithChildren
   '/admin/results': typeof AdminResultsRoute
+  '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/leaderboard': typeof LeaderboardRoute
+  '/leaderboard': typeof LeaderboardRouteWithChildren
   '/admin/results': typeof AdminResultsRoute
+  '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/leaderboard': typeof LeaderboardRoute
+  '/leaderboard': typeof LeaderboardRouteWithChildren
   '/admin/results': typeof AdminResultsRoute
+  '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
 }
@@ -69,6 +78,7 @@ export interface FileRouteTypes {
     | '/'
     | '/leaderboard'
     | '/admin/results'
+    | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
   fileRoutesByTo: FileRoutesByTo
@@ -76,6 +86,7 @@ export interface FileRouteTypes {
     | '/'
     | '/leaderboard'
     | '/admin/results'
+    | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
   id:
@@ -83,13 +94,14 @@ export interface FileRouteTypes {
     | '/'
     | '/leaderboard'
     | '/admin/results'
+    | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  LeaderboardRoute: typeof LeaderboardRoute
+  LeaderboardRoute: typeof LeaderboardRouteWithChildren
   AdminResultsRoute: typeof AdminResultsRoute
   PredictBracketRoute: typeof PredictBracketRoute
   PredictGroupRoute: typeof PredictGroupRoute
@@ -125,6 +137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PredictBracketRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/leaderboard/$userId': {
+      id: '/leaderboard/$userId'
+      path: '/$userId'
+      fullPath: '/leaderboard/$userId'
+      preLoaderRoute: typeof LeaderboardUserIdRouteImport
+      parentRoute: typeof LeaderboardRoute
+    }
     '/admin/results': {
       id: '/admin/results'
       path: '/admin/results'
@@ -135,9 +154,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LeaderboardRouteChildren {
+  LeaderboardUserIdRoute: typeof LeaderboardUserIdRoute
+}
+
+const LeaderboardRouteChildren: LeaderboardRouteChildren = {
+  LeaderboardUserIdRoute: LeaderboardUserIdRoute,
+}
+
+const LeaderboardRouteWithChildren = LeaderboardRoute._addFileChildren(
+  LeaderboardRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  LeaderboardRoute: LeaderboardRoute,
+  LeaderboardRoute: LeaderboardRouteWithChildren,
   AdminResultsRoute: AdminResultsRoute,
   PredictBracketRoute: PredictBracketRoute,
   PredictGroupRoute: PredictGroupRoute,
@@ -145,3 +176,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

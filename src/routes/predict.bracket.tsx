@@ -171,8 +171,8 @@ function BracketPredict() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-3 sm:px-4 py-5 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
+      <main className="max-w-[1600px] mx-auto px-2 sm:px-3 py-2 sm:py-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-2 mb-2 sm:mb-3">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Knockout Bracket</h1>
             <p className="text-muted-foreground text-sm">Tap a team to crown the winner. Winners auto-advance.</p>
@@ -196,7 +196,7 @@ function BracketPredict() {
         </div>
 
         {locked && (
-          <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
+          <div className="mb-2 p-2 rounded-md border border-primary/40 bg-primary/5 text-xs">
             🔒 Your predictions are submitted and locked. Viewing only.
           </div>
         )}

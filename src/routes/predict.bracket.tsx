@@ -171,7 +171,7 @@ function BracketPredict() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-1 sm:px-2 py-5 sm:py-8">
+      <main className="w-full px-1 sm:px-2 py-5 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Knockout Bracket</h1>

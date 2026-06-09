@@ -7,7 +7,7 @@ import { getUser, loadGroups, loadPicks, savePicks, isSubmitted, setSubmitted } 
 import { savePredictions } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
-import { Trophy } from "lucide-react";
+import { Trophy, Check } from "lucide-react";
 
 export const Route = createFileRoute("/predict/bracket")({
   head: () => ({
@@ -19,6 +19,14 @@ export const Route = createFileRoute("/predict/bracket")({
   component: BracketPredict,
 });
 
+const ROUNDS = [
+  { key: "R32", label: "Round of 32", short: "R32", ids: R32_IDS },
+  { key: "R16", label: "Round of 16", short: "R16", ids: R16_IDS },
+  { key: "QF", label: "Quarter-finals", short: "QF", ids: QF_IDS },
+  { key: "SF", label: "Semi-finals", short: "SF", ids: SF_IDS },
+  { key: "F", label: "Final", short: "Final", ids: [FINAL_ID] },
+] as const;
+
 function BracketPredict() {
   const navigate = useNavigate();
   const save = useServerFn(savePredictions);
@@ -27,6 +35,7 @@ function BracketPredict() {
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
 
   useEffect(() => {
     const u = getUser();
@@ -35,7 +44,6 @@ function BracketPredict() {
     setLocked(isSubmitted());
     const g = loadGroups();
     if (!g || Object.keys(g).length !== 12) {
-      // initialize defaults from GROUPS
       const def: Record<string, string[]> = {};
       for (const L of GROUP_LETTERS) def[L] = [...GROUPS[L]];
       setRankings(def);
@@ -59,7 +67,6 @@ function BracketPredict() {
   const pick = (id: string, team: string | null) => {
     if (!team || locked) return;
     const next = { ...picks, [id]: team };
-    // clear downstream picks that referenced the previous winner
     const downstreamMap: Record<string, string> = {};
     const pairs = [
       [R32_IDS, R16_IDS],
@@ -111,7 +118,11 @@ function BracketPredict() {
   const champion = matchById[FINAL_ID]?.winner ?? null;
   const finalMatch = matchById[FINAL_ID];
 
-  // Split into mirrored halves: matches 1..N/2 on the left, N/2+1..N on the right
+  const roundProgress = (ids: string[]) => {
+    const picked = ids.filter((id) => matchById[id]?.winner).length;
+    return { picked, total: ids.length };
+  };
+
   const half = (arr: string[]) => {
     const h = arr.length / 2;
     return [arr.slice(0, h), arr.slice(h)] as const;
@@ -122,10 +133,10 @@ function BracketPredict() {
   const [sfL, sfR] = [[SF_IDS[0]], [SF_IDS[1]]];
 
   const renderColumn = (ids: string[], title: string, align: "left" | "right") => (
-    <div className="flex flex-col gap-2 min-w-[170px] flex-1">
+    <div className="flex flex-col gap-2 min-w-[180px] flex-1">
       <h3
         className={[
-          "text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold",
+          "text-[10px] uppercase tracking-[0.25em] text-primary/80 font-semibold",
           align === "right" ? "text-right" : "text-left",
         ].join(" ")}
       >
@@ -142,38 +153,34 @@ function BracketPredict() {
   );
 
   const ChampionCard = (
-    <div className={[
-      "w-full rounded-lg border-2 px-4 py-5 text-center",
-      champion ? "border-primary bg-primary/10" : "border-dashed border-border bg-card/50",
-    ].join(" ")}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Champion</div>
-      <div className={["text-lg font-bold uppercase tracking-wide", champion ? "text-primary" : "text-muted-foreground italic"].join(" ")}>
+    <div
+      className={[
+        "w-full rounded-xl border-2 px-5 py-6 text-center transition",
+        champion
+          ? "border-primary bg-gradient-to-b from-primary/15 to-primary/5 shadow-[0_0_40px_-12px_var(--primary)]"
+          : "border-dashed border-border/60 bg-card/40",
+      ].join(" ")}
+    >
+      <div className="text-[10px] uppercase tracking-[0.3em] text-primary/80 font-semibold mb-3">Champion</div>
+      <div
+        className={[
+          "text-xl font-extrabold uppercase tracking-wider",
+          champion ? "text-primary" : "text-muted-foreground italic",
+        ].join(" ")}
+      >
         {champion ?? "TBD"}
       </div>
     </div>
   );
 
-  const mobileSection = (title: string, ids: string[]) => (
-    <section key={title} className="space-y-2">
-      <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">{title}</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {ids.map((id) => {
-          const m = matchById[id];
-          if (!m) return null;
-          return <MatchCard key={id} match={m} locked={locked} onPick={(team) => pick(id, team)} />;
-        })}
-      </div>
-    </section>
-  );
-
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <main className="max-w-[1600px] mx-auto px-3 sm:px-4 py-5 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Knockout Bracket</h1>
-            <p className="text-muted-foreground text-sm">Tap a team to pick the winner. Winners auto-advance.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Knockout Bracket</h1>
+            <p className="text-muted-foreground text-sm">Tap a team to crown the winner. Winners auto-advance.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">{locked ? "← Groups" : "← Edit groups"}</button>
@@ -181,7 +188,7 @@ function BracketPredict() {
               <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">Reset</button>
             )}
             {!locked && (
-              <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs sm:text-sm font-medium">
+              <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs sm:text-sm font-semibold">
                 {submitting ? "Saving…" : "Submit"}
               </button>
             )}
@@ -193,27 +200,116 @@ function BracketPredict() {
 
         {locked && (
           <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
-            🔒 Your predictions have been submitted and are locked. Viewing only.
+            🔒 Your predictions are submitted and locked. Viewing only.
           </div>
         )}
 
-        {/* Mobile / tablet — stacked rounds */}
-        <div className="lg:hidden space-y-6">
-          {mobileSection("Round of 32", R32_IDS)}
-          {mobileSection("Round of 16", R16_IDS)}
-          {mobileSection("Quarter-finals", QF_IDS)}
-          {mobileSection("Semi-finals", SF_IDS)}
-          <section className="space-y-2">
-            <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Final</h3>
-            {finalMatch && <MatchCard match={finalMatch} locked={locked} onPick={(team) => pick(FINAL_ID, team)} />}
-            <div className="flex flex-col items-center gap-3 pt-2">
-              <Trophy className="h-9 w-9 text-primary" />
-              <div className="w-full max-w-xs">{ChampionCard}</div>
+        {/* MOBILE / TABLET — round tabs + stacked cards */}
+        <div className="lg:hidden">
+          {/* Sticky round tabs */}
+          <div className="sticky top-0 z-20 -mx-3 sm:mx-0 mb-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-y border-border/60">
+            <div className="flex gap-1.5 overflow-x-auto px-3 py-2 no-scrollbar">
+              {ROUNDS.map((r) => {
+                const { picked, total } = roundProgress(r.ids);
+                const done = picked === total;
+                const active = activeRound === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    onClick={() => setActiveRound(r.key)}
+                    className={[
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap border transition",
+                      active
+                        ? "bg-primary text-primary-foreground border-primary shadow-[0_0_20px_-8px_var(--primary)]"
+                        : "bg-card/60 text-muted-foreground border-border hover:text-foreground",
+                    ].join(" ")}
+                  >
+                    <span>{r.short}</span>
+                    <span
+                      className={[
+                        "text-[10px] rounded-full px-1.5 py-0.5",
+                        active
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : done
+                          ? "bg-primary/20 text-primary"
+                          : "bg-muted text-muted-foreground",
+                      ].join(" ")}
+                    >
+                      {done ? <Check className="h-2.5 w-2.5 inline" /> : `${picked}/${total}`}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </section>
+          </div>
+
+          {ROUNDS.map((r) => {
+            if (r.key !== activeRound) return null;
+            const { picked, total } = roundProgress(r.ids);
+            return (
+              <section key={r.key} className="space-y-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold tracking-tight">{r.label}</h2>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70 font-semibold">
+                      {picked} of {total} picked
+                    </p>
+                  </div>
+                  {r.key === "F" && <Trophy className="h-6 w-6 text-primary" />}
+                </div>
+
+                {r.key === "F" ? (
+                  <div className="space-y-4">
+                    {finalMatch && (
+                      <MatchCard match={finalMatch} locked={locked} onPick={(team) => pick(FINAL_ID, team)} />
+                    )}
+                    <div className="flex justify-center pt-2">
+                      <Trophy className="h-10 w-10 text-primary drop-shadow-[0_0_12px_var(--primary)]" />
+                    </div>
+                    {ChampionCard}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {r.ids.map((id) => {
+                      const m = matchById[id];
+                      if (!m) return null;
+                      return <MatchCard key={id} match={m} locked={locked} onPick={(team) => pick(id, team)} />;
+                    })}
+                  </div>
+                )}
+
+                {/* Round nav */}
+                <div className="flex justify-between gap-2 pt-3">
+                  {(() => {
+                    const idx = ROUNDS.findIndex((x) => x.key === r.key);
+                    const prev = ROUNDS[idx - 1];
+                    const next = ROUNDS[idx + 1];
+                    return (
+                      <>
+                        <button
+                          disabled={!prev}
+                          onClick={() => prev && setActiveRound(prev.key)}
+                          className="flex-1 px-3 py-2.5 rounded-md border border-border bg-card/60 text-xs font-semibold disabled:opacity-30"
+                        >
+                          ← {prev?.short ?? ""}
+                        </button>
+                        <button
+                          disabled={!next}
+                          onClick={() => next && setActiveRound(next.key)}
+                          className="flex-1 px-3 py-2.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-30"
+                        >
+                          {next?.short ?? ""} →
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              </section>
+            );
+          })}
         </div>
 
-        {/* Desktop — mirrored bracket */}
+        {/* DESKTOP — mirrored bracket */}
         <div className="hidden lg:block overflow-x-auto">
           <div className="flex items-stretch gap-3 min-w-[1400px] pb-4">
             <div className="flex gap-3 flex-1">
@@ -223,14 +319,14 @@ function BracketPredict() {
               {renderColumn(sfL, "Semi-final", "left")}
             </div>
 
-            <div className="flex flex-col items-center justify-center gap-4 min-w-[220px] px-2">
-              <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Final</h3>
+            <div className="flex flex-col items-center justify-center gap-4 min-w-[240px] px-2">
+              <h3 className="text-[10px] uppercase tracking-[0.3em] text-primary/80 font-semibold">Final</h3>
               {finalMatch && (
                 <div className="w-full">
                   <MatchCard match={finalMatch} locked={locked} onPick={(team) => pick(FINAL_ID, team)} />
                 </div>
               )}
-              <Trophy className="h-10 w-10 text-primary" />
+              <Trophy className="h-12 w-12 text-primary drop-shadow-[0_0_16px_var(--primary)]" />
               {ChampionCard}
             </div>
 
@@ -257,20 +353,20 @@ function MatchCard({ match, onPick, locked }: { match: BracketMatch; onPick: (te
         disabled={disabled}
         onClick={() => team && onPick(team)}
         className={[
-          "w-full text-left px-3 py-2 text-sm rounded transition border",
+          "w-full text-left px-3 py-2.5 text-xs sm:text-sm rounded-md transition border uppercase tracking-wide font-semibold flex items-center justify-between gap-2",
           selected
-            ? "bg-primary text-primary-foreground border-primary font-semibold"
-            : "bg-card hover:bg-accent border-border",
-          disabled ? "opacity-50 cursor-not-allowed" : "",
+            ? "bg-primary text-primary-foreground border-primary shadow-[inset_0_0_0_1px_var(--primary)]"
+            : "bg-card/80 hover:bg-accent border-border text-foreground/90",
+          disabled && !selected ? "opacity-60 cursor-not-allowed" : "",
         ].join(" ")}
       >
-        {team ?? <span className="italic text-muted-foreground">{label}</span>}
+        <span className="truncate">{team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}</span>
+        {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
       </button>
     );
   };
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-2 flex flex-col gap-1.5">
-      <div className="text-[10px] text-muted-foreground font-mono px-1">{match.id}</div>
+    <div className="rounded-lg border border-border/70 bg-card/40 p-1.5 flex flex-col gap-1.5">
       {row(match.team1, match.label1)}
       {row(match.team2, match.label2)}
     </div>

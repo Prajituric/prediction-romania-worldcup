@@ -141,40 +141,81 @@ function BracketPredict() {
     </div>
   );
 
+  const ChampionCard = (
+    <div className={[
+      "w-full rounded-lg border-2 px-4 py-5 text-center",
+      champion ? "border-primary bg-primary/10" : "border-dashed border-border bg-card/50",
+    ].join(" ")}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Champion</div>
+      <div className={["text-lg font-bold uppercase tracking-wide", champion ? "text-primary" : "text-muted-foreground italic"].join(" ")}>
+        {champion ?? "TBD"}
+      </div>
+    </div>
+  );
+
+  const mobileSection = (title: string, ids: string[]) => (
+    <section key={title} className="space-y-2">
+      <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {ids.map((id) => {
+          const m = matchById[id];
+          if (!m) return null;
+          return <MatchCard key={id} match={m} locked={locked} onPick={(team) => pick(id, team)} />;
+        })}
+      </div>
+    </section>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-4 py-8">
-        <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+      <main className="max-w-[1600px] mx-auto px-3 sm:px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Knockout Bracket</h1>
-            <p className="text-muted-foreground">Click a team to pick the winner. Winners automatically advance.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Knockout Bracket</h1>
+            <p className="text-muted-foreground text-sm">Tap a team to pick the winner. Winners auto-advance.</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">{locked ? "← View groups" : "← Edit groups"}</button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">{locked ? "← Groups" : "← Edit groups"}</button>
             {!locked && (
-              <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-sm">Reset all picks</button>
+              <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">Reset</button>
             )}
             {!locked && (
-              <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {submitting ? "Saving…" : "Submit predictions"}
+              <button onClick={submit} disabled={submitting} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs sm:text-sm font-medium">
+                {submitting ? "Saving…" : "Submit"}
               </button>
             )}
             {locked && (
-              <button onClick={() => navigate({ to: "/leaderboard" })} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm">View leaderboard →</button>
+              <button onClick={() => navigate({ to: "/leaderboard" })} className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm">Leaderboard →</button>
             )}
           </div>
         </div>
 
         {locked && (
-          <div className="mb-6 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
+          <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
             🔒 Your predictions have been submitted and are locked. Viewing only.
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Mobile / tablet — stacked rounds */}
+        <div className="lg:hidden space-y-6">
+          {mobileSection("Round of 32", R32_IDS)}
+          {mobileSection("Round of 16", R16_IDS)}
+          {mobileSection("Quarter-finals", QF_IDS)}
+          {mobileSection("Semi-finals", SF_IDS)}
+          <section className="space-y-2">
+            <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Final</h3>
+            {finalMatch && <MatchCard match={finalMatch} locked={locked} onPick={(team) => pick(FINAL_ID, team)} />}
+            <div className="flex flex-col items-center gap-3 pt-2">
+              <Trophy className="h-9 w-9 text-primary" />
+              <div className="w-full max-w-xs">{ChampionCard}</div>
+            </div>
+          </section>
+        </div>
+
+        {/* Desktop — mirrored bracket */}
+        <div className="hidden lg:block overflow-x-auto">
           <div className="flex items-stretch gap-3 min-w-[1400px] pb-4">
-            {/* Left half */}
             <div className="flex gap-3 flex-1">
               {renderColumn(r32L, "Round of 32", "left")}
               {renderColumn(r16L, "Round of 16", "left")}
@@ -182,7 +223,6 @@ function BracketPredict() {
               {renderColumn(sfL, "Semi-final", "left")}
             </div>
 
-            {/* Center: Final + Champion */}
             <div className="flex flex-col items-center justify-center gap-4 min-w-[220px] px-2">
               <h3 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Final</h3>
               {finalMatch && (
@@ -191,18 +231,9 @@ function BracketPredict() {
                 </div>
               )}
               <Trophy className="h-10 w-10 text-primary" />
-              <div className={[
-                "w-full rounded-lg border-2 px-4 py-5 text-center",
-                champion ? "border-primary bg-primary/10" : "border-dashed border-border bg-card/50",
-              ].join(" ")}>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Champion</div>
-                <div className={["text-lg font-bold uppercase tracking-wide", champion ? "text-primary" : "text-muted-foreground italic"].join(" ")}>
-                  {champion ?? "TBD"}
-                </div>
-              </div>
+              {ChampionCard}
             </div>
 
-            {/* Right half — mirrored */}
             <div className="flex gap-3 flex-1 flex-row-reverse">
               {renderColumn(r32R, "Round of 32", "right")}
               {renderColumn(r16R, "Round of 16", "right")}

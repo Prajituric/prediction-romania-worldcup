@@ -320,7 +320,7 @@ function MatchCard({ match, compact = false }: { match: BracketMatch; compact?: 
     return (
       <div className={[
         "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center justify-between gap-1",
-        compact ? "px-1.5 py-1 text-[10px]" : "px-3 py-2.5 text-xs sm:text-sm",
+        compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm",
         selected
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-card/80 border-border text-foreground/90 opacity-60",

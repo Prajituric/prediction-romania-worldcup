@@ -171,8 +171,8 @@ function BracketPredict() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-2 sm:px-3 py-2 sm:py-3">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-2 mb-2 sm:mb-3">
+      <main className="max-w-[1600px] mx-auto px-1 sm:px-2 py-5 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Knockout Bracket</h1>
             <p className="text-muted-foreground text-sm">Tap a team to crown the winner. Winners auto-advance.</p>
@@ -196,7 +196,7 @@ function BracketPredict() {
         </div>
 
         {locked && (
-          <div className="mb-2 p-2 rounded-md border border-primary/40 bg-primary/5 text-xs">
+          <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
             🔒 Your predictions are submitted and locked. Viewing only.
           </div>
         )}
@@ -348,7 +348,7 @@ function MatchCard({
         onClick={() => team && onPick(team)}
         className={[
           "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center justify-between gap-1 transition",
-          compact ? "px-1.5 py-1 text-[10px]" : "px-3 py-2.5 text-xs sm:text-sm",
+          compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm",
           selected
             ? "bg-primary text-primary-foreground border-primary"
             : "bg-card/80 hover:bg-accent border-border text-foreground/90",

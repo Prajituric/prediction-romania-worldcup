@@ -96,6 +96,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "stylesheet",
+        href: "https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css",
+      },
     ],
   }),
   shellComponent: RootShell,

@@ -7,6 +7,7 @@ import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
 import { getUserPrediction } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { Trophy, Check, ChevronLeft } from "lucide-react";
+import { getFlag } from "@/lib/wc/flags";
 
 export const Route = createFileRoute("/leaderboard/$userId")({
   head: () => ({
@@ -171,6 +172,7 @@ function ViewUserPredictions() {
                           ].join(" ")}>
                             {idx + 1}
                           </span>
+                          {(() => { const f = getFlag(team); return f ? <span className={`fi fi-${f} shrink-0`} /> : null; })()}
                           <span className="flex-1 text-left uppercase tracking-wide text-[13px]">{team}</span>
                         </div>
                       </li>
@@ -179,6 +181,7 @@ function ViewUserPredictions() {
                       <li key={team}>
                         <div className="w-full flex items-center gap-3 px-3 py-2 rounded text-sm border border-transparent text-foreground/50">
                           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full text-xs border border-border text-muted-foreground shrink-0" />
+                          {(() => { const f = getFlag(team); return f ? <span className={`fi fi-${f} shrink-0 opacity-40`} /> : null; })()}
                           <span className="flex-1 text-left uppercase tracking-wide text-[13px]">{team}</span>
                         </div>
                       </li>
@@ -317,15 +320,19 @@ function ViewUserPredictions() {
 function MatchCard({ match, compact = false }: { match: BracketMatch; compact?: boolean }) {
   const row = (team: string | null, label: string) => {
     const selected = team && match.winner === team;
+    const flag = team ? getFlag(team) : null;
     return (
       <div className={[
-        "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center justify-between gap-1",
+        "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center gap-1.5",
         compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm",
         selected
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-card/80 border-border text-foreground/90 opacity-60",
       ].join(" ")}>
-        <span className="truncate">{team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}</span>
+        {flag && <span className={`fi fi-${flag} shrink-0`} />}
+        <span className="truncate flex-1">
+          {team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}
+        </span>
         {selected && <Check className={compact ? "h-2.5 w-2.5 shrink-0" : "h-3.5 w-3.5 shrink-0"} />}
       </div>
     );

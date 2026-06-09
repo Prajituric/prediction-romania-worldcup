@@ -4,6 +4,7 @@ import { GROUPS, GROUP_LETTERS } from "@/lib/wc/groupsData";
 import { getUser, loadGroups, saveGroups, isSubmitted } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { X } from "lucide-react";
+import { getFlag } from "@/lib/wc/flags";
 
 export const Route = createFileRoute("/predict/group")({
   head: () => ({
@@ -174,6 +175,7 @@ function GroupPredict() {
                           >
                             {isRanked ? idx + 1 : ""}
                           </span>
+                          {(() => { const f = getFlag(team); return f ? <span className={`fi fi-${f} shrink-0`} /> : null; })()}
                           <span className="flex-1 text-left uppercase tracking-wide text-[13px]">{team}</span>
                         </button>
                       </li>

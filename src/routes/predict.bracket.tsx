@@ -8,6 +8,7 @@ import { savePredictions } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
 import { Trophy, Check } from "lucide-react";
+import { getFlag } from "@/lib/wc/flags";
 
 export const Route = createFileRoute("/predict/bracket")({
   head: () => ({
@@ -341,13 +342,14 @@ function MatchCard({
   const row = (team: string | null, label: string) => {
     const disabled = !team || !!locked;
     const selected = team && match.winner === team;
+    const flag = team ? getFlag(team) : null;
     return (
       <button
         type="button"
         disabled={disabled}
         onClick={() => team && onPick(team)}
         className={[
-          "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center justify-between gap-1 transition",
+          "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center gap-1.5 transition",
           compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm",
           selected
             ? "bg-primary text-primary-foreground border-primary"
@@ -355,7 +357,10 @@ function MatchCard({
           disabled && !selected ? "opacity-60 cursor-not-allowed" : "",
         ].join(" ")}
       >
-        <span className="truncate">{team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}</span>
+        {flag && <span className={`fi fi-${flag} shrink-0`} />}
+        <span className="truncate flex-1">
+          {team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}
+        </span>
         {selected && <Check className={compact ? "h-2.5 w-2.5 shrink-0" : "h-3.5 w-3.5 shrink-0"} />}
       </button>
     );

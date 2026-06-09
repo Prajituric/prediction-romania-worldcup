@@ -19,13 +19,13 @@ export const Route = createFileRoute("/predict/bracket")({
   component: BracketPredict,
 });
 
-const ROUNDS = [
+const ROUNDS: { key: "R32" | "R16" | "QF" | "SF" | "F"; label: string; short: string; ids: string[] }[] = [
   { key: "R32", label: "Round of 32", short: "R32", ids: R32_IDS },
   { key: "R16", label: "Round of 16", short: "R16", ids: R16_IDS },
   { key: "QF", label: "Quarter-finals", short: "QF", ids: QF_IDS },
   { key: "SF", label: "Semi-finals", short: "SF", ids: SF_IDS },
   { key: "F", label: "Final", short: "Final", ids: [FINAL_ID] },
-] as const;
+];
 
 function BracketPredict() {
   const navigate = useNavigate();

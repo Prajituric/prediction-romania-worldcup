@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getLeaderboard } from "@/lib/wc/predictions.functions";
@@ -18,6 +18,9 @@ export const Route = createFileRoute("/leaderboard")({
 function Leaderboard() {
   const fetchLb = useServerFn(getLeaderboard);
   const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => fetchLb() });
+  const childMatches = useChildMatches();
+
+  if (childMatches.length > 0) return <Outlet />;
 
   return (
     <div className="min-h-screen bg-background">

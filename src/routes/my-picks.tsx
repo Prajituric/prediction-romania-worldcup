@@ -1,77 +1,110 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
 import { getUserPrediction, getActualResults } from "@/lib/wc/predictions.functions";
+import { getUser } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
-import { Trophy, Check, ChevronLeft } from "lucide-react";
+import { Trophy, Check } from "lucide-react";
 import { getFlag } from "@/lib/wc/flags";
 
+export const Route = createFileRoute("/my-picks")({
+  head: () => ({ meta: [{ title: "My Picks — WC 2026" }] }),
+  component: MyPicksPage,
+});
+
+const ROUNDS = [
+  { key: "R32" as const, label: "Round of 32", short: "R32", ids: R32_IDS },
+  { key: "R16" as const, label: "Round of 16", short: "R16", ids: R16_IDS },
+  { key: "QF" as const, label: "Quarter-finals", short: "QF", ids: QF_IDS },
+  { key: "SF" as const, label: "Semi-finals", short: "SF", ids: SF_IDS },
+  { key: "F" as const, label: "Final", short: "Final", ids: [FINAL_ID] },
+];
+
+// ── Accuracy circle ────────────────────────────────────────────────────────
 function AccuracyCircle({ pct, label, color = "var(--primary)" }: { pct: number; label: string; color?: string }) {
-  const r = 28; const circ = 2 * Math.PI * r; const dash = (pct / 100) * circ;
+  const r = 28;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
   return (
     <div className="flex flex-col items-center gap-1">
       <svg width="72" height="72" viewBox="0 0 72 72">
         <circle cx="36" cy="36" r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
-        <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="6"
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-          transform="rotate(-90 36 36)" style={{ transition: "stroke-dasharray 0.6s ease" }} />
-        <text x="36" y="40" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor">{Math.round(pct)}%</text>
+        <circle
+          cx="36" cy="36" r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform="rotate(-90 36 36)"
+          style={{ transition: "stroke-dasharray 0.6s ease" }}
+        />
+        <text x="36" y="40" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor">
+          {Math.round(pct)}%
+        </text>
       </svg>
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</span>
     </div>
   );
 }
 
-function calcAccuracy(userG: Record<string, string[]>, userK: Record<string, string>, actualG: Record<string, string[]>, actualK: Record<string, string>) {
+function calcAccuracy(
+  userG: Record<string, string[]>,
+  userK: Record<string, string>,
+  actualG: Record<string, string[]>,
+  actualK: Record<string, string>,
+) {
+  // Group accuracy: correct positions / total resolved positions
   let gCorrect = 0, gTotal = 0;
   for (const g of GROUP_LETTERS) {
     const u = userG[g], a = actualG[g];
-    if (!u || !a || a.length < 4) continue;
+    if (!u || !a) continue;
+    // Only count if group is fully resolved (all 4 teams placed)
+    if (a.length < 4) continue;
     for (let i = 0; i < 4; i++) { gTotal++; if (u[i] === a[i]) gCorrect++; }
   }
+
+  // Bracket accuracy: correct picks / resolved matches
   const ALL_IDS = [...R32_IDS, ...R16_IDS, ...QF_IDS, ...SF_IDS, FINAL_ID];
   let kCorrect = 0, kTotal = 0;
   for (const id of ALL_IDS) {
     if (actualK[id]) { kTotal++; if (userK[id] === actualK[id]) kCorrect++; }
   }
-  return { groupPct: gTotal > 0 ? (gCorrect / gTotal) * 100 : 0, bracketPct: kTotal > 0 ? (kCorrect / kTotal) * 100 : 0, hasGroupData: gTotal > 0, hasBracketData: kTotal > 0 };
+
+  return {
+    groupPct: gTotal > 0 ? (gCorrect / gTotal) * 100 : 0,
+    bracketPct: kTotal > 0 ? (kCorrect / kTotal) * 100 : 0,
+    hasGroupData: gTotal > 0,
+    hasBracketData: kTotal > 0,
+  };
 }
 
-export const Route = createFileRoute("/leaderboard/$userId")({
-  head: () => ({
-    meta: [{ title: "View Predictions — World Cup 2026" }],
-  }),
-  component: ViewUserPredictions,
-});
-
-const ROUNDS: { key: "R32" | "R16" | "QF" | "SF" | "F"; label: string; short: string; ids: string[] }[] = [
-  { key: "R32", label: "Round of 32", short: "R32", ids: R32_IDS },
-  { key: "R16", label: "Round of 16", short: "R16", ids: R16_IDS },
-  { key: "QF", label: "Quarter-finals", short: "QF", ids: QF_IDS },
-  { key: "SF", label: "Semi-finals", short: "SF", ids: SF_IDS },
-  { key: "F", label: "Final", short: "Final", ids: [FINAL_ID] },
-];
-
-function ViewUserPredictions() {
-  const { userId } = Route.useParams();
+function MyPicksPage() {
+  const navigate = useNavigate();
+  const [userId, setUserId] = useState<number | null>(null);
   const fetchPrediction = useServerFn(getUserPrediction);
   const fetchActual = useServerFn(getActualResults);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
 
+  useEffect(() => {
+    const u = getUser();
+    if (!u) { navigate({ to: "/" }); return; }
+    setUserId(u.userId);
+  }, [navigate]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["user-prediction", userId],
-    queryFn: () => fetchPrediction({ data: { userId: Number(userId) } }),
+    queryKey: ["my-picks", userId],
+    queryFn: () => fetchPrediction({ data: { userId: userId! } }),
+    enabled: !!userId,
   });
 
-  const { data: actual } = useQuery({ queryKey: ["actual-results"], queryFn: () => fetchActual() });
-
-  const accuracy = useMemo(() => {
-    if (!data || !actual) return null;
-    return calcAccuracy(data.groupRankings as Record<string, string[]>, data.knockoutPicks as Record<string, string>, actual.groupRankings as Record<string, string[]>, actual.knockoutResults as Record<string, string>);
-  }, [data, actual]);
+  const { data: actual } = useQuery({
+    queryKey: ["actual-results"],
+    queryFn: () => fetchActual(),
+  });
 
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
   const picks = (data?.knockoutPicks as Record<string, string>) ?? {};
@@ -87,7 +120,17 @@ function ViewUserPredictions() {
     return m;
   }, [bracket]);
 
-  if (isLoading) {
+  const accuracy = useMemo(() => {
+    if (!data || !actual) return null;
+    return calcAccuracy(
+      data.groupRankings as Record<string, string[]>,
+      data.knockoutPicks as Record<string, string>,
+      actual.groupRankings as Record<string, string[]>,
+      actual.knockoutResults as Record<string, string>,
+    );
+  }, [data, actual]);
+
+  if (!userId || isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <SiteHeader />
@@ -101,8 +144,8 @@ function ViewUserPredictions() {
       <div className="min-h-screen bg-background">
         <SiteHeader />
         <main className="max-w-2xl mx-auto px-4 py-16 text-center">
-          <p className="text-muted-foreground">No predictions found for this user.</p>
-          <Link to="/leaderboard" className="mt-4 inline-block text-primary hover:underline">← Back to Ranking</Link>
+          <p className="text-muted-foreground">You haven't submitted your predictions yet.</p>
+          <Link to="/predict/group" className="mt-4 inline-block text-primary hover:underline">Make your picks →</Link>
         </main>
       </div>
     );
@@ -116,7 +159,6 @@ function ViewUserPredictions() {
     return { picked, total: ids.length };
   };
 
-  // Desktop helpers
   const half = (arr: string[]) => {
     const h = arr.length / 2;
     return [arr.slice(0, h), arr.slice(h)] as const;
@@ -128,10 +170,7 @@ function ViewUserPredictions() {
 
   const renderColumn = (ids: string[], title: string, align: "left" | "right") => (
     <div className="flex flex-col gap-1 flex-1 min-w-0">
-      <h3 className={[
-        "text-[9px] uppercase tracking-[0.2em] text-primary/70 font-semibold mb-1 truncate",
-        align === "right" ? "text-right" : "text-left",
-      ].join(" ")}>
+      <h3 className={["text-[9px] uppercase tracking-[0.2em] text-primary/70 font-semibold mb-1 truncate", align === "right" ? "text-right" : "text-left"].join(" ")}>
         {title}
       </h3>
       <div className="flex flex-col justify-around flex-1 gap-2">
@@ -145,17 +184,9 @@ function ViewUserPredictions() {
   );
 
   const ChampionCard = (
-    <div className={[
-      "w-full rounded-lg border-2 px-3 py-4 text-center transition",
-      champion
-        ? "border-primary bg-gradient-to-b from-primary/15 to-primary/5 shadow-[0_0_30px_-10px_var(--primary)]"
-        : "border-dashed border-border/60 bg-card/40",
-    ].join(" ")}>
+    <div className={["w-full rounded-lg border-2 px-3 py-4 text-center transition", champion ? "border-primary bg-gradient-to-b from-primary/15 to-primary/5 shadow-[0_0_30px_-10px_var(--primary)]" : "border-dashed border-border/60 bg-card/40"].join(" ")}>
       <div className="text-[9px] uppercase tracking-[0.25em] text-primary/80 font-semibold mb-2">Champion</div>
-      <div className={[
-        "text-sm font-extrabold uppercase tracking-wider",
-        champion ? "text-primary" : "text-muted-foreground italic",
-      ].join(" ")}>
+      <div className={["text-sm font-extrabold uppercase tracking-wider", champion ? "text-primary" : "text-muted-foreground italic"].join(" ")}>
         {champion ?? "TBD"}
       </div>
     </div>
@@ -164,30 +195,28 @@ function ViewUserPredictions() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <main className="max-w-[1600px] mx-auto px-3 sm:px-4 py-5 sm:py-8">
+      <main className="w-full px-1 sm:px-2 py-5 sm:py-8">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-5">
-          <Link to="/leaderboard" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="h-4 w-4" /> Ranking
-          </Link>
-          <span className="text-muted-foreground">/</span>
-          <span className="font-semibold">Predictions · {data.points} pts</span>
-        </div>
-
-        <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm text-center">
-          👁 View only — these are someone else's predictions
+        <div className="max-w-3xl mx-auto px-2 mb-5">
+          <h1 className="text-3xl font-bold tracking-tight uppercase mb-1">My Picks</h1>
+          <p className="text-muted-foreground text-sm">{data.points} pts · locked predictions</p>
         </div>
 
         {/* Accuracy circles */}
         {accuracy && (accuracy.hasGroupData || accuracy.hasBracketData) && (
-          <div className="mb-6 rounded-xl border border-border bg-card p-4 flex items-center justify-center gap-10">
-            {accuracy.hasGroupData && <AccuracyCircle pct={accuracy.groupPct} label="Groups" />}
-            {accuracy.hasBracketData && <AccuracyCircle pct={accuracy.bracketPct} label="Bracket" color="var(--chart-2, #3b82f6)" />}
+          <div className="max-w-3xl mx-auto px-2 mb-6">
+            <div className="rounded-xl border border-border bg-card p-4 flex items-center justify-center gap-10">
+              {accuracy.hasGroupData && <AccuracyCircle pct={accuracy.groupPct} label="Groups" />}
+              {accuracy.hasBracketData && <AccuracyCircle pct={accuracy.bracketPct} label="Bracket" color="var(--chart-2, #3b82f6)" />}
+              {!accuracy.hasGroupData && !accuracy.hasBracketData && (
+                <p className="text-xs text-muted-foreground">Accuracy will show once matches are played</p>
+              )}
+            </div>
           </div>
         )}
 
         {/* Group stage */}
-        <section className="mb-8">
+        <section className="max-w-6xl mx-auto px-2 mb-8">
           <h2 className="text-xl font-bold mb-4">Group Stage</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {GROUP_LETTERS.map((g) => {
@@ -203,20 +232,8 @@ function ViewUserPredictions() {
                   <ul className="p-2 space-y-1.5">
                     {ranked.map((team, idx) => (
                       <li key={team}>
-                        <div className={[
-                          "w-full flex items-center gap-3 px-3 py-2 rounded text-sm border",
-                          idx < 3
-                            ? "bg-secondary/70 border-primary/40 text-foreground font-medium"
-                            : "bg-secondary/40 border-border text-muted-foreground",
-                        ].join(" ")}>
-                          <span className={[
-                            "inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold shrink-0",
-                            idx === 0
-                              ? "bg-primary text-primary-foreground"
-                              : idx === 1 || idx === 2
-                              ? "bg-secondary text-foreground border border-border"
-                              : "bg-muted text-muted-foreground",
-                          ].join(" ")}>
+                        <div className={["w-full flex items-center gap-3 px-3 py-2 rounded text-sm border", idx < 3 ? "bg-secondary/70 border-primary/40 text-foreground font-medium" : "bg-secondary/40 border-border text-muted-foreground"].join(" ")}>
+                          <span className={["inline-flex items-center justify-center h-6 w-6 rounded-full text-xs font-bold shrink-0", idx === 0 ? "bg-primary text-primary-foreground" : idx === 1 || idx === 2 ? "bg-secondary text-foreground border border-border" : "bg-muted text-muted-foreground"].join(" ")}>
                             {idx + 1}
                           </span>
                           {(() => { const f = getFlag(team); return f ? <span className={`fi fi-${f} shrink-0`} /> : null; })()}
@@ -241,35 +258,21 @@ function ViewUserPredictions() {
         </section>
 
         {/* Knockout bracket */}
-        <section>
+        <section className="max-w-6xl mx-auto px-2">
           <h2 className="text-xl font-bold mb-4">Knockout Bracket</h2>
 
-          {/* MOBILE / TABLET — round tabs */}
+          {/* MOBILE */}
           <div className="lg:hidden">
-            <div className="sticky top-0 z-20 -mx-3 sm:mx-0 mb-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-y border-border/60">
+            <div className="sticky top-0 z-20 -mx-1 sm:mx-0 mb-4 bg-background/95 backdrop-blur border-y border-border/60">
               <div className="flex gap-1.5 overflow-x-auto px-3 py-2 no-scrollbar">
                 {ROUNDS.map((r) => {
                   const { picked, total } = roundProgress(r.ids);
                   const done = picked === total;
                   const active = activeRound === r.key;
                   return (
-                    <button
-                      key={r.key}
-                      onClick={() => setActiveRound(r.key)}
-                      className={[
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap border transition",
-                        active
-                          ? "bg-primary text-primary-foreground border-primary shadow-[0_0_20px_-8px_var(--primary)]"
-                          : "bg-card/60 text-muted-foreground border-border hover:text-foreground",
-                      ].join(" ")}
-                    >
+                    <button key={r.key} onClick={() => setActiveRound(r.key)} className={["flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider whitespace-nowrap border transition", active ? "bg-primary text-primary-foreground border-primary" : "bg-card/60 text-muted-foreground border-border hover:text-foreground"].join(" ")}>
                       <span>{r.short}</span>
-                      <span className={[
-                        "text-[10px] rounded-full px-1.5 py-0.5",
-                        active ? "bg-primary-foreground/20 text-primary-foreground"
-                          : done ? "bg-primary/20 text-primary"
-                          : "bg-muted text-muted-foreground",
-                      ].join(" ")}>
+                      <span className={["text-[10px] rounded-full px-1.5 py-0.5", active ? "bg-primary-foreground/20 text-primary-foreground" : done ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"].join(" ")}>
                         {done ? <Check className="h-2.5 w-2.5 inline" /> : `${picked}/${total}`}
                       </span>
                     </button>
@@ -277,7 +280,6 @@ function ViewUserPredictions() {
                 })}
               </div>
             </div>
-
             {ROUNDS.map((r) => {
               if (r.key !== activeRound) return null;
               const { picked, total } = roundProgress(r.ids);
@@ -286,48 +288,29 @@ function ViewUserPredictions() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-bold tracking-tight">{r.label}</h3>
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70 font-semibold">
-                        {picked} of {total} picked
-                      </p>
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-primary/70 font-semibold">{picked} of {total} picked</p>
                     </div>
                     {r.key === "F" && <Trophy className="h-6 w-6 text-primary" />}
                   </div>
-
                   {r.key === "F" ? (
                     <div className="space-y-4 max-w-sm mx-auto">
                       {finalMatch && <MatchCard match={finalMatch} />}
-                      <div className="flex justify-center pt-2">
-                        <Trophy className="h-10 w-10 text-primary drop-shadow-[0_0_12px_var(--primary)]" />
-                      </div>
+                      <div className="flex justify-center pt-2"><Trophy className="h-10 w-10 text-primary drop-shadow-[0_0_12px_var(--primary)]" /></div>
                       {ChampionCard}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {r.ids.map((id) => {
-                        const m = matchById[id];
-                        if (!m) return null;
-                        return <MatchCard key={id} match={m} />;
-                      })}
+                      {r.ids.map((id) => { const m = matchById[id]; if (!m) return null; return <MatchCard key={id} match={m} />; })}
                     </div>
                   )}
-
                   <div className="flex justify-between gap-2 pt-3">
                     {(() => {
                       const idx = ROUNDS.findIndex((x) => x.key === r.key);
-                      const prev = ROUNDS[idx - 1];
-                      const next = ROUNDS[idx + 1];
-                      return (
-                        <>
-                          <button disabled={!prev} onClick={() => prev && setActiveRound(prev.key)}
-                            className="flex-1 px-3 py-2.5 rounded-md border border-border bg-card/60 text-xs font-semibold disabled:opacity-30">
-                            ← {prev?.short ?? ""}
-                          </button>
-                          <button disabled={!next} onClick={() => next && setActiveRound(next.key)}
-                            className="flex-1 px-3 py-2.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-30">
-                            {next?.short ?? ""} →
-                          </button>
-                        </>
-                      );
+                      const prev = ROUNDS[idx - 1]; const next = ROUNDS[idx + 1];
+                      return (<>
+                        <button disabled={!prev} onClick={() => prev && setActiveRound(prev.key)} className="flex-1 px-3 py-2.5 rounded-md border border-border bg-card/60 text-xs font-semibold disabled:opacity-30">← {prev?.short ?? ""}</button>
+                        <button disabled={!next} onClick={() => next && setActiveRound(next.key)} className="flex-1 px-3 py-2.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-30">{next?.short ?? ""} →</button>
+                      </>);
                     })()}
                   </div>
                 </section>
@@ -335,7 +318,7 @@ function ViewUserPredictions() {
             })}
           </div>
 
-          {/* DESKTOP — mirrored bracket, fluid */}
+          {/* DESKTOP */}
           <div className="hidden lg:flex items-stretch gap-1.5 w-full">
             <div className="flex gap-1.5 flex-1 min-w-0">
               {renderColumn(r32L, "Round of 32", "left")}
@@ -343,14 +326,12 @@ function ViewUserPredictions() {
               {renderColumn(qfL, "Quarter-finals", "left")}
               {renderColumn(sfL, "Semi-final", "left")}
             </div>
-
             <div className="flex flex-col items-center justify-center gap-3 w-[160px] shrink-0 px-1">
               <h3 className="text-[9px] uppercase tracking-[0.25em] text-primary/80 font-semibold">Final</h3>
               {finalMatch && <div className="w-full"><MatchCard match={finalMatch} compact /></div>}
               <Trophy className="h-8 w-8 text-primary drop-shadow-[0_0_12px_var(--primary)]" />
               {ChampionCard}
             </div>
-
             <div className="flex gap-1.5 flex-1 min-w-0 flex-row-reverse">
               {renderColumn(r32R, "Round of 32", "right")}
               {renderColumn(r16R, "Round of 16", "right")}
@@ -369,17 +350,9 @@ function MatchCard({ match, compact = false }: { match: BracketMatch; compact?: 
     const selected = team && match.winner === team;
     const flag = team ? getFlag(team) : null;
     return (
-      <div className={[
-        "w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center gap-1.5",
-        compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-card/80 border-border text-foreground/90 opacity-60",
-      ].join(" ")}>
+      <div className={["w-full text-left rounded border uppercase tracking-wide font-semibold flex items-center gap-1.5", compact ? "px-2 py-1.5 text-xs" : "px-3 py-2.5 text-xs sm:text-sm", selected ? "bg-primary text-primary-foreground border-primary" : "bg-card/80 border-border text-foreground/90 opacity-60"].join(" ")}>
         {flag && <span className={`fi fi-${flag} shrink-0`} />}
-        <span className="truncate flex-1">
-          {team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}
-        </span>
+        <span className="truncate flex-1">{team ?? <span className="italic text-muted-foreground normal-case font-normal">{label}</span>}</span>
         {selected && <Check className={compact ? "h-2.5 w-2.5 shrink-0" : "h-3.5 w-3.5 shrink-0"} />}
       </div>
     );

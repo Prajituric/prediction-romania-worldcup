@@ -204,6 +204,39 @@ export const adminSetActualResults = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const getCommunityStats = createServerFn({ method: "GET" }).handler(async () => {
+  const { data } = await supabaseAdmin
+    .from("predictions")
+    .select("group_rankings, knockout_picks");
+
+  if (!data || data.length === 0) return { groupWinners: {}, champions: [] };
+
+  // Most voted group winner per group
+  const groupWinners: Record<string, { team: string; votes: number; total: number }> = {};
+  for (const g of GROUP_LETTERS) {
+    const tally: Record<string, number> = {};
+    for (const row of data as any[]) {
+      const team = (row.group_rankings as Record<string, string[]>)?.[g]?.[0];
+      if (team) tally[team] = (tally[team] ?? 0) + 1;
+    }
+    const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    if (top) groupWinners[g] = { team: top[0], votes: top[1], total: data.length };
+  }
+
+  // Most voted champion (Final winner pick)
+  const champTally: Record<string, number> = {};
+  for (const row of data as any[]) {
+    const champ = (row.knockout_picks as Record<string, string>)?.[FINAL_ID];
+    if (champ) champTally[champ] = (champTally[champ] ?? 0) + 1;
+  }
+  const champions = Object.entries(champTally)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([team, votes]) => ({ team, votes, total: data.length }));
+
+  return { groupWinners, champions };
+});
+
 // Resolve the full bracket from rankings + picks, used to drive admin's KO dropdowns from the actual group standings.
 export const resolveBracketFromActual = createServerFn({ method: "POST" })
   .inputValidator((d: { groupRankings: GroupRankings; picks: KnockoutPicks }) => d)

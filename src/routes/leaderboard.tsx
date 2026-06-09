@@ -1,9 +1,11 @@
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getLeaderboard } from "@/lib/wc/predictions.functions";
+import { getLeaderboard, getCommunityStats } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
-import { Trophy } from "lucide-react";
+import { GROUP_LETTERS } from "@/lib/wc/groupsData";
+import { getFlag } from "@/lib/wc/flags";
+import { Trophy, Users } from "lucide-react";
 
 export const Route = createFileRoute("/leaderboard")({
   head: () => ({
@@ -17,7 +19,9 @@ export const Route = createFileRoute("/leaderboard")({
 
 function Leaderboard() {
   const fetchLb = useServerFn(getLeaderboard);
+  const fetchCommunity = useServerFn(getCommunityStats);
   const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => fetchLb() });
+  const { data: community } = useQuery({ queryKey: ["community-stats"], queryFn: () => fetchCommunity() });
   const childMatches = useChildMatches();
 
   if (childMatches.length > 0) return <Outlet />;
@@ -66,6 +70,64 @@ function Leaderboard() {
           )}
         </div>
         <p className="mt-3 text-xs text-muted-foreground text-center">Click a name to see their predictions</p>
+
+        {/* Community Picks */}
+        {community && (community.champions.length > 0 || Object.keys(community.groupWinners).length > 0) && (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-primary" /> Community Picks
+            </h2>
+
+            {/* Champion podium */}
+            {community.champions.length > 0 && (
+              <div className="rounded-lg border border-border bg-card p-4 mb-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">🏆 Most picked champion</p>
+                <div className="flex flex-col gap-2">
+                  {community.champions.map((c, i) => {
+                    const f = getFlag(c.team);
+                    const pct = Math.round((c.votes / c.total) * 100);
+                    return (
+                      <div key={c.team} className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
+                        {f && <span className={`fi fi-${f} shrink-0`} />}
+                        <span className="font-semibold text-sm flex-1 uppercase tracking-wide">{c.team}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 h-1.5 rounded-full bg-secondary overflow-hidden">
+                            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-16 text-right">{c.votes}/{c.total} players</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Group winners grid */}
+            {Object.keys(community.groupWinners).length > 0 && (
+              <div className="rounded-lg border border-border bg-card p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Most picked group winner</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+                  {GROUP_LETTERS.map((g) => {
+                    const w = community.groupWinners[g];
+                    if (!w) return null;
+                    const f = getFlag(w.team);
+                    const pct = Math.round((w.votes / w.total) * 100);
+                    return (
+                      <div key={g} className="flex items-center gap-2 py-1 border-b border-border/30">
+                        <span className="text-[10px] font-bold text-muted-foreground w-8 shrink-0">GRP {g}</span>
+                        {f && <span className={`fi fi-${f} shrink-0 text-sm`} />}
+                        <span className="text-xs font-semibold truncate flex-1">{w.team}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

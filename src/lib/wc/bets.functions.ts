@@ -28,7 +28,7 @@ export function scoreBet(
 
 // ── Place / update a bet ──────────────────────────────────────────────────────
 export const placeBet = createServerFn({ method: "POST" })
-  .inputValidator((d: { userId: number; matchId: number; homeScore: number; awayScore: number }) => {
+  .inputValidator((d: { userId: number; matchId: number; matchUtcDate: string; homeScore: number; awayScore: number }) => {
     if (typeof d.userId !== "number") throw new Error("Not logged in.");
     if (typeof d.matchId !== "number") throw new Error("Missing matchId.");
     if (d.homeScore < 0 || d.homeScore > 20) throw new Error("Invalid home score.");
@@ -36,6 +36,12 @@ export const placeBet = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data }) => {
+    // Server-side enforcement: lock 60 minutes before kickoff
+    const minsUntilKickoff = (new Date(data.matchUtcDate).getTime() - Date.now()) / 60000;
+    if (minsUntilKickoff <= 60) {
+      throw new Error("Bets are locked 1 hour before kickoff.");
+    }
+
     const existing = await supabaseAdmin
       .from("bets")
       .select("id, resolved")

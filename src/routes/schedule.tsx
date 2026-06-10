@@ -9,7 +9,7 @@ import { getFlag } from "@/lib/wc/flags";
 import { getCaptain } from "@/lib/wc/captains";
 import { placeBet, getUserBets, type BetInfo } from "@/lib/wc/bets.functions";
 import { getUser } from "@/lib/wc/session";
-import { Calendar, MapPin, Clock, Flame, Lock, CheckCircle2, Pencil } from "lucide-react";
+import { Calendar, MapPin, Clock, Flame, Lock, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({ meta: [{ title: "Schedule — WC 2026" }] }),
@@ -209,9 +209,10 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
   const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
   const isFinished = match.status === "FINISHED";
   const isUpcoming = !isLive && !isFinished;
-  // Bet is locked once match started OR if already resolved in DB
-  const betLocked = !isUpcoming || (savedBet?.resolved ?? false);
-  const canBet = !!userId && isUpcoming && !betLocked;
+  // Lock bets 60 minutes before kickoff (or if match started/finished/already resolved)
+  const minsUntilKickoff = differenceInMinutes(parseISO(match.utcDate), new Date());
+  const betLocked = !isUpcoming || minsUntilKickoff <= 60 || (savedBet?.resolved ?? false);
+  const canBet = !!userId && !betLocked;
   const cd = isUpcoming ? countdown(match.utcDate) : null;
 
   const homeFlag = getFlag(match.homeTeam);
@@ -241,7 +242,7 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
     setSaving(true);
     setSaveError(null);
     try {
-      await placeBet({ data: { userId, matchId: match.id, homeScore: homeInput, awayScore: awayInput } });
+      await placeBet({ data: { userId, matchId: match.id, matchUtcDate: match.utcDate, homeScore: homeInput, awayScore: awayInput } });
       onBetSaved();
       setBetOpen(false);
     } catch (e: any) {
@@ -357,11 +358,6 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
               <span className="text-sm font-extrabold tabular-nums text-primary">
                 {savedBet.homeScore}–{savedBet.awayScore}
               </span>
-              {canBet && (
-                <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
-                  <Pencil className="h-2.5 w-2.5" /> edit
-                </span>
-              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-0.5">

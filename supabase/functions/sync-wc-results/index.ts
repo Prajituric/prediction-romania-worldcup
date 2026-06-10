@@ -95,6 +95,9 @@ const R32_SPEC = [
 function buildBracket(
   rankings: Record<string, string[]>,
   picks: Record<string, string>,
+  // Actual group-stage points per team (from API standings) — used to rank thirds correctly.
+  // Falls back to position-based estimate only if not provided.
+  teamActualPts: Record<string, number> = {},
 ): { id: string; team1: string | null; team2: string | null; winner: string | null }[] {
   const byGroup: Record<string, { winner: string; runner: string; third: string; pts: number }> = {};
   const allThirds: { team: string; g: string; pts: number }[] = [];
@@ -102,11 +105,15 @@ function buildBracket(
   for (const g of GROUP_LETTERS) {
     const order = rankings[g];
     if (!order || order.length !== 4) continue;
+    // Use real group-stage points for the third-place team so qualifying-thirds
+    // selection matches the actual tournament (not alphabetical).
+    const thirdTeam = order[2];
+    const thirdPts = teamActualPts[thirdTeam] ?? POSITION_POINTS[3];
     byGroup[g] = {
-      winner: order[0], runner: order[1], third: order[2],
-      pts: POSITION_POINTS[3],
+      winner: order[0], runner: order[1], third: thirdTeam,
+      pts: thirdPts,
     };
-    allThirds.push({ team: order[2], g, pts: POSITION_POINTS[3] });
+    allThirds.push({ team: thirdTeam, g, pts: thirdPts });
   }
 
   const sortedThirds = [...allThirds].sort((a, b) => b.pts - a.pts || a.team.localeCompare(b.team));
@@ -234,8 +241,18 @@ Deno.serve(async (_req) => {
     }
     // Note: groups with no played matches are intentionally excluded — no fake standings
 
+    // Build actual group-stage pts map so third-place team selection is based on
+    // real performance (not an alphabetical fallback).
+    const teamActualPts: Record<string, number> = {};
+    for (const standing of standingsData.standings ?? []) {
+      for (const row of (standing.table ?? []) as any[]) {
+        const name = normalize(row.team?.name ?? "");
+        if (name) teamActualPts[name] = row.points ?? 0;
+      }
+    }
+
     // Build bracket from current standings so we can map team pairs → match IDs
-    const bracketMatches = buildBracket(groupRankings, {});
+    const bracketMatches = buildBracket(groupRankings, {}, teamActualPts);
     const matchIdByTeams: Record<string, string> = {};
     for (const m of bracketMatches) {
       if (m.team1 && m.team2) {

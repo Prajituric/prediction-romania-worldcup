@@ -17,21 +17,80 @@ export type Database = {
       actual_results: {
         Row: {
           group_rankings_actual: Json
+          group_standings_actual: Json
           id: number
           knockout_results_actual: Json
           updated_at: string
         }
         Insert: {
           group_rankings_actual: Json
+          group_standings_actual?: Json
           id?: number
           knockout_results_actual: Json
           updated_at?: string
         }
         Update: {
           group_rankings_actual?: Json
+          group_standings_actual?: Json
           id?: number
           knockout_results_actual?: Json
           updated_at?: string
+        }
+        Relationships: []
+      }
+      bets: {
+        Row: {
+          away_score: number
+          created_at: string
+          home_score: number
+          id: number
+          match_id: number
+          points: number
+          resolved: boolean
+          user_id: number
+        }
+        Insert: {
+          away_score: number
+          created_at?: string
+          home_score: number
+          id?: never
+          match_id: number
+          points?: number
+          resolved?: boolean
+          user_id: number
+        }
+        Update: {
+          away_score?: number
+          created_at?: string
+          home_score?: number
+          id?: never
+          match_id?: number
+          points?: number
+          resolved?: boolean
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notified_matches: {
+        Row: {
+          match_id: number
+          sent_at: string
+        }
+        Insert: {
+          match_id: number
+          sent_at?: string
+        }
+        Update: {
+          match_id?: number
+          sent_at?: string
         }
         Relationships: []
       }
@@ -65,6 +124,41 @@ export type Database = {
             foreignKeyName: "predictions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: number
+          p256dh: string
+          user_id: number
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: never
+          p256dh: string
+          user_id: number
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: never
+          p256dh?: string
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },

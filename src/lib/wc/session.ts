@@ -1,4 +1,6 @@
 // Lightweight client-side "session" — name-only, no auth
+// Set to true to allow all users to re-edit their picks (revert to false to lock after WC starts)
+export const EDITING_OPEN = true;
 const USER_KEY = "wc.user";
 const GROUPS_KEY = "wc.groupRankings";
 const PICKS_KEY = "wc.knockoutPicks";
@@ -6,6 +8,7 @@ const THIRDS_KEY = "wc.thirds";
 const SUBMITTED_KEY = "wc.submitted";
 
 export function isSubmitted(): boolean {
+  if (EDITING_OPEN) return false; // editing window: treat everyone as unlocked
   if (typeof window === "undefined") return false;
   return localStorage.getItem(SUBMITTED_KEY) === "1";
 }

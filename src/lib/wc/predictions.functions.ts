@@ -136,7 +136,7 @@ export const savePredictions = createServerFn({ method: "POST" })
 
 export const getLeaderboard = createServerFn({ method: "GET" }).handler(async () => {
   const [{ data: predictions, error }, { data: betRows }] = await Promise.all([
-    supabaseAdmin.from("predictions").select("points, user_id, users(name)"),
+    supabaseAdmin.from("predictions").select("points, user_id, users(name), group_rankings, knockout_picks"),
     supabaseAdmin.from("bets").select("user_id, points").eq("resolved", true),
   ]);
   if (error) throw new Error(error.message);
@@ -148,6 +148,20 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
   }
 
   return (predictions ?? [])
+    .filter((r: any) => {
+      // Only show users with complete predictions: all 12 groups ranked + 8 thirds selected
+      const groups = r.group_rankings as Record<string, string[]> | null;
+      if (!groups || Object.keys(groups).length < 12) return false;
+      const allGroupsFull = Object.values(groups).every((g: string[]) => g.length === 4);
+      if (!allGroupsFull) return false;
+      const picks = r.knockout_picks as Record<string, string> | null;
+      if (!picks) return false;
+      try {
+        const thirds = JSON.parse(picks["__thirds__"] ?? "null");
+        if (!Array.isArray(thirds) || thirds.length !== 8) return false;
+      } catch { return false; }
+      return true;
+    })
     .map((r: any) => ({
       userId: r.user_id as number,
       name: r.users?.name ?? "Unknown",

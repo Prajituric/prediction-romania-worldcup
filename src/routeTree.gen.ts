@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as MyPicksRouteImport } from './routes/my-picks'
 import { Route as PredictGroupRouteImport } from './routes/predict.group'
+import { Route as PredictThirdsRouteImport } from './routes/predict.thirds'
 import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
 import { Route as LeaderboardUserIdRouteImport } from './routes/leaderboard.$userId'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
@@ -43,6 +44,11 @@ const PredictGroupRoute = PredictGroupRouteImport.update({
   path: '/predict/group',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PredictThirdsRoute = PredictThirdsRouteImport.update({
+  id: '/predict/thirds',
+  path: '/predict/thirds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PredictBracketRoute = PredictBracketRouteImport.update({
   id: '/predict/bracket',
   path: '/predict/bracket',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
+  '/predict/thirds': typeof PredictThirdsRoute
   '/predict/group': typeof PredictGroupRoute
   '/schedule': typeof ScheduleRoute
   '/my-picks': typeof MyPicksRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
+  '/predict/thirds': typeof PredictThirdsRoute
   '/predict/group': typeof PredictGroupRoute
   '/schedule': typeof ScheduleRoute
   '/my-picks': typeof MyPicksRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
+  '/predict/thirds': typeof PredictThirdsRoute
   '/predict/group': typeof PredictGroupRoute
   '/schedule': typeof ScheduleRoute
   '/my-picks': typeof MyPicksRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
+    | '/predict/thirds'
     | '/predict/group'
     | '/schedule'
     | '/my-picks'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
+    | '/predict/thirds'
     | '/predict/group'
     | '/schedule'
     | '/my-picks'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
+    | '/predict/thirds'
     | '/predict/group'
     | '/schedule'
     | '/my-picks'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   LeaderboardRoute: typeof LeaderboardRouteWithChildren
   AdminResultsRoute: typeof AdminResultsRoute
   PredictBracketRoute: typeof PredictBracketRoute
+  PredictThirdsRoute: typeof PredictThirdsRoute
   PredictGroupRoute: typeof PredictGroupRoute
   ScheduleRoute: typeof ScheduleRoute
   MyPicksRoute: typeof MyPicksRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/predict/bracket'
       fullPath: '/predict/bracket'
       preLoaderRoute: typeof PredictBracketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/predict/thirds': {
+      id: '/predict/thirds'
+      path: '/predict/thirds'
+      fullPath: '/predict/thirds'
+      preLoaderRoute: typeof PredictThirdsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leaderboard/$userId': {
@@ -211,6 +231,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeaderboardRoute: LeaderboardRouteWithChildren,
   AdminResultsRoute: AdminResultsRoute,
   PredictBracketRoute: PredictBracketRoute,
+  PredictThirdsRoute: PredictThirdsRoute,
   PredictGroupRoute: PredictGroupRoute,
   ScheduleRoute: ScheduleRoute,
   MyPicksRoute: MyPicksRoute,

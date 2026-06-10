@@ -2,6 +2,7 @@
 const USER_KEY = "wc.user";
 const GROUPS_KEY = "wc.groupRankings";
 const PICKS_KEY = "wc.knockoutPicks";
+const THIRDS_KEY = "wc.thirds";
 const SUBMITTED_KEY = "wc.submitted";
 
 export function isSubmitted(): boolean {
@@ -36,3 +37,12 @@ export function loadPicks(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(PICKS_KEY) ?? "{}"); } catch { return {}; }
 }
 export function savePicks(p: Record<string, string>) { localStorage.setItem(PICKS_KEY, JSON.stringify(p)); }
+
+export function loadThirds(): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(THIRDS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch { return null; }
+}
+export function saveThirds(t: string[]) { localStorage.setItem(THIRDS_KEY, JSON.stringify(t)); }

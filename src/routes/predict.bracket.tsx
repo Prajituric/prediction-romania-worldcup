@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
-import { getUser, loadGroups, loadPicks, savePicks, isSubmitted, setSubmitted } from "@/lib/wc/session";
+import { getUser, loadGroups, loadPicks, savePicks, loadThirds, isSubmitted, setSubmitted } from "@/lib/wc/session";
 import { savePredictions, getActualResults } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ function BracketPredict() {
   const [user, setUserState] = useState<ReturnType<typeof getUser>>(null);
   const [rankings, setRankings] = useState<Record<string, string[]> | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [selectedThirds, setSelectedThirds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
@@ -60,6 +61,7 @@ function BracketPredict() {
       setRankings(g);
     }
     setPicks(loadPicks());
+    setSelectedThirds(loadThirds() ?? []);
   }, [navigate]);
 
   // When locked + actual results exist: use actual group rankings to build the bracket
@@ -78,14 +80,14 @@ function BracketPredict() {
   }, [rankings, locked, actual]);
 
   // When locked: show actual bracket (only decided matches filled, rest TBD)
-  // When not locked: show user's prediction picks
+  // When not locked: show user's prediction picks, using their selected thirds for R32 slots
   const bracket = useMemo<BracketMatch[]>(() => {
     if (!displayRankings) return [];
     if (locked) {
       return buildFullBracket(displayRankings, actualKnockout);
     }
-    return buildFullBracket(displayRankings, picks);
-  }, [displayRankings, picks, locked, actualKnockout]);
+    return buildFullBracket(displayRankings, picks, selectedThirds.length === 8 ? selectedThirds : undefined);
+  }, [displayRankings, picks, locked, actualKnockout, selectedThirds]);
 
   const matchById = useMemo(() => {
     const m: Record<string, BracketMatch> = {};
@@ -207,8 +209,8 @@ function BracketPredict() {
             <p className="text-muted-foreground text-sm">Tap a team to crown the winner. Winners auto-advance.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => navigate({ to: "/predict/group" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">
-              {locked ? "← Groups" : "← Edit groups"}
+            <button onClick={() => navigate({ to: "/predict/thirds" })} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">
+              {locked ? "← Thirds" : "← Edit thirds"}
             </button>
             {!locked && (
               <button onClick={resetAll} className="px-3 py-2 rounded-md border border-border hover:bg-accent text-xs sm:text-sm">Reset</button>

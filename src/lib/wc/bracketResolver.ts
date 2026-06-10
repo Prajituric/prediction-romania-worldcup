@@ -96,8 +96,15 @@ export interface ResolvedR32Match {
   label2: string;
 }
 
-export function resolveR32(rankings: GroupRankings): ResolvedR32Match[] {
-  const { byGroup, qualifiedThirds } = getQualifiedTeams(rankings);
+export function resolveR32(rankings: GroupRankings, selectedThirds?: string[]): ResolvedR32Match[] {
+  const { byGroup, allThirds, qualifiedThirds: autoQualified } = getQualifiedTeams(rankings);
+
+  // If user explicitly chose 8 thirds, use those; otherwise fall back to auto top-8 by points
+  const qualifiedThirds =
+    selectedThirds && selectedThirds.length === 8
+      ? allThirds.filter((t) => selectedThirds.includes(t.team))
+      : autoQualified;
+
   const qualifiedThirdSet = new Set(qualifiedThirds.map((t) => t.group));
 
   // Available pools
@@ -210,8 +217,9 @@ export interface BracketMatch {
 export function buildFullBracket(
   rankings: GroupRankings,
   picks: KnockoutPicks,
+  selectedThirds?: string[],
 ): BracketMatch[] {
-  const r32Resolved = resolveR32(rankings);
+  const r32Resolved = resolveR32(rankings, selectedThirds);
   const matches: BracketMatch[] = r32Resolved.map((m) => ({
     id: m.id,
     round: "R32",

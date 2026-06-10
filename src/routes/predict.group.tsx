@@ -108,7 +108,7 @@ function GroupPredict() {
     [ranked],
   );
 
-  const continueNext = () => navigate({ to: "/predict/bracket" });
+  const continueNext = () => navigate({ to: "/predict/thirds" });
 
   if (!user) return null;
 

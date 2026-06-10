@@ -20,7 +20,7 @@ export function PushBell({ variant = "icon" }: { variant?: Variant }) {
 
   useEffect(() => {
     const u = getUser();
-    setUserId(u?.id ?? null);
+    setUserId(u?.userId ?? null);
     setSupported(isPushSupported());
     setDismissed(typeof window !== "undefined" && localStorage.getItem("push.banner.dismissed") === "1");
     (async () => {

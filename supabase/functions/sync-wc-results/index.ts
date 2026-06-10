@@ -72,6 +72,16 @@ function calcPoints(
   return pts;
 }
 
+// ── Bet scoring ───────────────────────────────────────────────────────────
+const BET_EXACT_PTS = 10;
+const BET_OUTCOME_PTS = 3;
+
+function scoreBet(ph: number, pa: number, ah: number, aa: number): number {
+  if (ph === ah && pa === aa) return BET_EXACT_PTS;
+  if (Math.sign(ph - pa) === Math.sign(ah - aa)) return BET_OUTCOME_PTS;
+  return 0;
+}
+
 // ── Bracket resolution (mirrored from bracketResolver.ts) ─────────────────
 const R32_SPEC = [
   { id: "R32_1",  s1: { k: "winner", g: "A" },  s2: { k: "third",  gs: ["C","D","E"] } },
@@ -205,24 +215,41 @@ Deno.serve(async (_req) => {
     }
 
     const groupRankings: Record<string, string[]> = {};
+    const groupStandings: Record<string, any[]> = {};
 
     for (const standing of standingsData.standings ?? []) {
       // API group: "GROUP_A", "GROUP_B", etc.
       const letter = (standing.group as string)?.replace("GROUP_", "");
       if (!GROUP_LETTERS.includes(letter)) continue;
-      const sorted = [...standing.table]
-        .sort((a: any, b: any) => a.position - b.position)
-        .slice(0, 4)
-        .map((row: any) => normalize(row.team.name));
-      if (sorted.length === 4) groupRankings[letter] = sorted;
+      const sorted = [...standing.table].sort((a: any, b: any) => a.position - b.position);
+      const top4 = sorted.slice(0, 4).map((row: any) => normalize(row.team.name));
+      if (top4.length === 4) groupRankings[letter] = top4;
+
+      groupStandings[letter] = sorted.map((row: any) => ({
+        team: normalize(row.team.name),
+        played: row.playedGames ?? 0,
+        won: row.won ?? 0,
+        drawn: row.draw ?? 0,
+        lost: row.lost ?? 0,
+        goalsFor: row.goalsFor ?? 0,
+        goalsAgainst: row.goalsAgainst ?? 0,
+        goalDiff: row.goalDifference ?? 0,
+        points: row.points ?? 0,
+      }));
     }
 
     // Fill in any groups not yet in standings with the original group order
     for (const g of GROUP_LETTERS) {
       if (!groupRankings[g]) groupRankings[g] = [...GROUPS[g]];
+      if (!groupStandings[g]) {
+        groupStandings[g] = GROUPS[g].map((team) => ({
+          team, played: 0, won: 0, drawn: 0, lost: 0,
+          goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0,
+        }));
+      }
     }
 
-    // ── 2. Fetch all knockout matches ─────────────────────────────────────
+    // ── 2. Fetch all matches (knockout results + finished match scores) ───
     const { data: matchesData } = await apiFetch(
       "/competitions/WC/matches?season=2026",
     );
@@ -242,8 +269,17 @@ Deno.serve(async (_req) => {
     ]);
 
     const knockoutResults: Record<string, string> = {};
+    const finishedMatches: { id: number; homeScore: number; awayScore: number }[] = [];
 
     for (const match of matchesData.matches ?? []) {
+      if (match.status === "FINISHED" && match.score?.fullTime?.home !== null && match.score?.fullTime?.away !== null) {
+        finishedMatches.push({
+          id: match.id,
+          homeScore: match.score.fullTime.home,
+          awayScore: match.score.fullTime.away,
+        });
+      }
+
       if (!KO_STAGES.has(match.stage)) continue;
       if (match.status !== "FINISHED") continue;
       if (!match.score?.winner) continue;
@@ -264,15 +300,17 @@ Deno.serve(async (_req) => {
     const { error: insErr } = await supabase.from("actual_results").insert({
       group_rankings_actual: groupRankings,
       knockout_results_actual: knockoutResults,
+      group_standings_actual: groupStandings,
     });
     if (insErr) throw new Error(insErr.message);
 
-    // ── 4. Recalculate all users' points ──────────────────────────────────
+    // ── 4. Recalculate all users' bracket points ──────────────────────────
     const { data: predictions } = await supabase
       .from("predictions")
-      .select("id, group_rankings, knockout_picks");
+      .select("id, user_id, group_rankings, knockout_picks");
 
-    let updated = 0;
+    // Map user_id → base prediction points (before bet bonuses)
+    const userBasePoints: Record<number, number> = {};
     for (const row of predictions ?? []) {
       const pts = calcPoints(
         row.group_rankings,
@@ -280,7 +318,46 @@ Deno.serve(async (_req) => {
         groupRankings,
         knockoutResults,
       );
-      await supabase.from("predictions").update({ points: pts }).eq("id", row.id);
+      userBasePoints[row.user_id] = pts;
+    }
+
+    // ── 5. Resolve bets for finished matches ──────────────────────────────
+    const finishedById = new Map<number, { homeScore: number; awayScore: number }>();
+    for (const m of finishedMatches) finishedById.set(m.id, m);
+
+    const { data: pendingBets } = await supabase
+      .from("bets")
+      .select("id, user_id, match_id, home_score, away_score")
+      .eq("resolved", false)
+      .in("match_id", finishedMatches.map((m) => m.id));
+
+    let betsResolved = 0;
+    for (const bet of pendingBets ?? []) {
+      const actual = finishedById.get(bet.match_id);
+      if (!actual) continue;
+      const pts = scoreBet(bet.home_score, bet.away_score, actual.homeScore, actual.awayScore);
+      await supabase
+        .from("bets")
+        .update({ points: pts, resolved: true })
+        .eq("id", bet.id);
+      betsResolved++;
+    }
+
+    // ── 6. Aggregate all bet points per user + write final predictions.points ─
+    const { data: allBetPoints } = await supabase
+      .from("bets")
+      .select("user_id, points")
+      .eq("resolved", true);
+
+    const userBetPoints: Record<number, number> = {};
+    for (const b of allBetPoints ?? []) {
+      userBetPoints[b.user_id] = (userBetPoints[b.user_id] ?? 0) + (b.points ?? 0);
+    }
+
+    let updated = 0;
+    for (const row of predictions ?? []) {
+      const total = (userBasePoints[row.user_id] ?? 0) + (userBetPoints[row.user_id] ?? 0);
+      await supabase.from("predictions").update({ points: total }).eq("id", row.id);
       updated++;
     }
 
@@ -288,6 +365,8 @@ Deno.serve(async (_req) => {
       ok: true,
       groupsResolved: Object.keys(groupRankings).length,
       knockoutResultsCount: Object.keys(knockoutResults).length,
+      finishedMatches: finishedMatches.length,
+      betsResolved,
       usersUpdated: updated,
       timestamp: new Date().toISOString(),
     });

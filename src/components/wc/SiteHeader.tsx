@@ -1,13 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getUser, isSubmitted } from "@/lib/wc/session";
+import { getUser } from "@/lib/wc/session";
 
 export function SiteHeader() {
   const [showMyPicks, setShowMyPicks] = useState(false);
 
   useEffect(() => {
-    setShowMyPicks(!!getUser() && isSubmitted());
+    // Show "My Picks" for any logged-in user, regardless of submission lock state
+    setShowMyPicks(!!getUser());
   }, []);
 
   return (
@@ -20,6 +21,7 @@ export function SiteHeader() {
         <nav className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
           <Link to="/schedule" className="hover:text-primary">Schedule</Link>
           <Link to="/predict/group" className="hover:text-primary">Groups</Link>
+          <Link to="/predict/thirds" className="hover:text-primary">Thirds</Link>
           <Link to="/predict/bracket" className="hover:text-primary">Bracket</Link>
           {showMyPicks && <Link to="/my-picks" className="hover:text-primary font-medium text-primary">My Picks</Link>}
           <Link to="/leaderboard" className="hover:text-primary">Ranking</Link>

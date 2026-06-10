@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GROUP_LETTERS } from "@/lib/wc/groupsData";
-import { getUser, isSubmitted, loadGroups, loadThirds, saveThirds } from "@/lib/wc/session";
-import { getActualResults } from "@/lib/wc/predictions.functions";
+import { getUser, isSubmitted, loadGroups, loadThirds, saveThirds, saveGroups } from "@/lib/wc/session";
+import { getActualResults, getUserPrediction } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { getFlag } from "@/lib/wc/flags";
 
@@ -21,15 +21,24 @@ export const Route = createFileRoute("/predict/thirds")({
 function ThirdsPredict() {
   const navigate = useNavigate();
   const fetchActual = useServerFn(getActualResults);
+  const fetchUserPrediction = useServerFn(getUserPrediction);
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
   const [locked, setLocked] = useState(false);
   const [thirdsFromGroups, setThirdsFromGroups] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [localGroupsEmpty, setLocalGroupsEmpty] = useState(false);
 
   const { data: actual } = useQuery({
     queryKey: ["actual-results"],
     queryFn: () => fetchActual(),
     enabled: locked,
+  });
+
+  // Fallback: load from DB when localStorage groups are missing (e.g. returning user, new device)
+  const { data: dbPrediction } = useQuery({
+    queryKey: ["user-prediction", user?.userId],
+    queryFn: () => fetchUserPrediction({ data: { userId: user!.userId } }),
+    enabled: !!user && localGroupsEmpty,
   });
 
   useEffect(() => {
@@ -41,16 +50,52 @@ function ThirdsPredict() {
     setLocked(submitted);
 
     const groups = loadGroups();
+    const hasLocalGroups = groups && Object.keys(groups).length === 12;
     const thirds: Record<string, string> = {};
-    for (const g of GROUP_LETTERS) {
-      const team = groups[g]?.[2];
-      if (team) thirds[g] = team;
+    if (hasLocalGroups) {
+      for (const g of GROUP_LETTERS) {
+        const team = groups[g]?.[2];
+        if (team) thirds[g] = team;
+      }
+      setThirdsFromGroups(thirds);
+    } else {
+      // Mark as empty so we trigger the DB query
+      setLocalGroupsEmpty(true);
     }
-    setThirdsFromGroups(thirds);
 
     const saved = loadThirds();
     if (saved && saved.length > 0) setSelected(new Set(saved));
   }, [navigate]);
+
+  // When DB data arrives (localStorage was empty), populate teams from DB prediction
+  useEffect(() => {
+    if (!dbPrediction) return;
+    const dbGroups = dbPrediction.groupRankings as Record<string, string[]> | null;
+    if (dbGroups && Object.keys(dbGroups).length === 12) {
+      // Repopulate localStorage so subsequent pages work too
+      saveGroups(dbGroups);
+      const thirds: Record<string, string> = {};
+      for (const g of GROUP_LETTERS) {
+        const team = dbGroups[g]?.[2];
+        if (team) thirds[g] = team;
+      }
+      setThirdsFromGroups(thirds);
+    }
+    // Also restore their saved thirds selection from DB if not in localStorage
+    if (selected.size === 0) {
+      try {
+        const dbPicks = dbPrediction.knockoutPicks as Record<string, string> | null;
+        const raw = dbPicks?.["__thirds__"];
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            setSelected(new Set(arr));
+            saveThirds(arr);
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+  }, [dbPrediction]);
 
   // Always show user's own predicted thirds (so checkmarks work correctly).
   // Actual 3rd-place teams are shown as a comparison indicator per row.

@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
-import { getUser, loadGroups, loadPicks, savePicks, loadThirds, isSubmitted, setSubmitted } from "@/lib/wc/session";
-import { savePredictions, getActualResults } from "@/lib/wc/predictions.functions";
+import { getUser, loadGroups, loadPicks, savePicks, saveGroups, loadThirds, saveThirds, isSubmitted, setSubmitted } from "@/lib/wc/session";
+import { savePredictions, getActualResults, getUserPrediction } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
 import { Trophy, Check } from "lucide-react";
@@ -33,6 +33,7 @@ function BracketPredict() {
   const navigate = useNavigate();
   const save = useServerFn(savePredictions);
   const fetchActual = useServerFn(getActualResults);
+  const fetchUserPrediction = useServerFn(getUserPrediction);
   const [user, setUserState] = useState<ReturnType<typeof getUser>>(null);
   const [rankings, setRankings] = useState<Record<string, string[]> | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
@@ -40,11 +41,19 @@ function BracketPredict() {
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
+  const [needsDbLoad, setNeedsDbLoad] = useState(false);
 
   const { data: actual } = useQuery({
     queryKey: ["actual-results"],
     queryFn: () => fetchActual(),
     enabled: locked,
+  });
+
+  // Fallback: fetch from DB when localStorage is missing (returning user on new device/cleared cache)
+  const { data: dbPrediction } = useQuery({
+    queryKey: ["user-prediction", user?.userId],
+    queryFn: () => fetchUserPrediction({ data: { userId: user!.userId } }),
+    enabled: !!user && needsDbLoad,
   });
 
   useEffect(() => {
@@ -53,16 +62,50 @@ function BracketPredict() {
     setUserState(u);
     setLocked(isSubmitted());
     const g = loadGroups();
-    if (!g || Object.keys(g).length !== 12) {
+    const hasLocalGroups = g && Object.keys(g).length === 12;
+    if (hasLocalGroups) {
+      setRankings(g);
+    } else {
+      // No local groups — trigger DB fetch; use alphabetical default until it arrives
       const def: Record<string, string[]> = {};
       for (const L of GROUP_LETTERS) def[L] = [...GROUPS[L]];
       setRankings(def);
-    } else {
-      setRankings(g);
+      setNeedsDbLoad(true);
     }
     setPicks(loadPicks());
     setSelectedThirds(loadThirds() ?? []);
   }, [navigate]);
+
+  // When DB data arrives, replace the placeholder data with saved picks
+  useEffect(() => {
+    if (!dbPrediction) return;
+    const dbGroups = dbPrediction.groupRankings as Record<string, string[]> | null;
+    if (dbGroups && Object.keys(dbGroups).length === 12) {
+      saveGroups(dbGroups);
+      setRankings(dbGroups);
+    }
+    const dbKo = dbPrediction.knockoutPicks as Record<string, string> | null;
+    if (dbKo) {
+      // Restore knockout picks (excluding __thirds__ metadata key)
+      const koPicks: Record<string, string> = {};
+      for (const [k, v] of Object.entries(dbKo)) {
+        if (k !== "__thirds__") koPicks[k] = v;
+      }
+      savePicks(koPicks);
+      setPicks(koPicks);
+      // Restore thirds
+      try {
+        const raw = dbKo["__thirds__"];
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            saveThirds(arr);
+            setSelectedThirds(arr);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }, [dbPrediction]);
 
   // When locked + actual results exist: use actual group rankings to build the bracket
   // but only populate knockout results that are actually decided
@@ -79,12 +122,15 @@ function BracketPredict() {
     return rankings;
   }, [rankings, locked, actual]);
 
-  // When locked: show actual bracket (only decided matches filled, rest TBD)
+  // When locked: show actual results if they exist, otherwise show user's own saved picks
   // When not locked: show user's prediction picks, using their selected thirds for R32 slots
   const bracket = useMemo<BracketMatch[]>(() => {
     if (!displayRankings) return [];
     if (locked) {
-      return buildFullBracket(displayRankings, actualKnockout);
+      const hasActualKnockout = Object.keys(actualKnockout).length > 0;
+      // Fall back to user's own picks until actual results come in
+      const effectivePicks = hasActualKnockout ? actualKnockout : picks;
+      return buildFullBracket(displayRankings, effectivePicks, selectedThirds.length === 8 ? selectedThirds : undefined);
     }
     return buildFullBracket(displayRankings, picks, selectedThirds.length === 8 ? selectedThirds : undefined);
   }, [displayRankings, picks, locked, actualKnockout, selectedThirds]);
@@ -235,7 +281,7 @@ function BracketPredict() {
           <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
             {actual?.knockoutResults && Object.keys(actual.knockoutResults).length > 0
               ? "🏆 Showing actual bracket results as matches are decided"
-              : "🔒 Your predictions are locked. The bracket will fill in as matches are played."}
+              : "🔒 Your predictions are saved. Results will replace these once matches are played."}
           </div>
         )}
 

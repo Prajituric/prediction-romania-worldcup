@@ -149,7 +149,7 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
 
   return (predictions ?? [])
     .filter((r: any) => {
-      // Only show users with complete predictions: all 12 groups ranked + 8 thirds selected
+      // Only show users with fully complete predictions: all 12 groups + 8 thirds + all 31 knockout picks
       const groups = r.group_rankings as Record<string, string[]> | null;
       if (!groups || Object.keys(groups).length < 12) return false;
       const allGroupsFull = Object.values(groups).every((g: string[]) => g.length === 4);
@@ -160,6 +160,9 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
         const thirds = JSON.parse(picks["__thirds__"] ?? "null");
         if (!Array.isArray(thirds) || thirds.length !== 8) return false;
       } catch { return false; }
+      // Require all 31 knockout match winners to be picked
+      const allKoPicked = ALL_KO_IDS.every((id) => !!picks[id]);
+      if (!allKoPicked) return false;
       return true;
     })
     .map((r: any) => ({

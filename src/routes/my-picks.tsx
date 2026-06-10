@@ -124,10 +124,20 @@ function MyPicksPage() {
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
   const picks = (data?.knockoutPicks as Record<string, string>) ?? {};
 
+  // Extract thirds selection encoded at submit time (stored under __thirds__ key)
+  const savedThirds = useMemo<string[] | undefined>(() => {
+    try {
+      const raw = picks["__thirds__"];
+      if (!raw) return undefined;
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) && arr.length === 8 ? arr : undefined;
+    } catch { return undefined; }
+  }, [picks]);
+
   const bracket = useMemo<BracketMatch[]>(() => {
     if (!rankings) return [];
-    return buildFullBracket(rankings, picks);
-  }, [rankings, picks]);
+    return buildFullBracket(rankings, picks, savedThirds);
+  }, [rankings, picks, savedThirds]);
 
   const matchById = useMemo(() => {
     const m: Record<string, BracketMatch> = {};

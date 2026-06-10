@@ -132,7 +132,12 @@ function BracketPredict() {
     if (!user || !rankings || locked) return;
     setSubmitting(true);
     try {
-      const res = await save({ data: { userId: user.userId, groupRankings: rankings, knockoutPicks: picks } });
+      // Encode user's thirds selection into knockoutPicks so it persists to DB.
+      // The __thirds__ key is ignored by all scoring loops (they only iterate ALL_KO_IDS).
+      const picksWithThirds = selectedThirds.length === 8
+        ? { ...picks, "__thirds__": JSON.stringify(selectedThirds) }
+        : picks;
+      const res = await save({ data: { userId: user.userId, groupRankings: rankings, knockoutPicks: picksWithThirds } });
       setSubmitted(true);
       setLocked(true);
       toast.success(`Predictions submitted and locked! Current points: ${res.points}`);

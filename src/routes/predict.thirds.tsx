@@ -52,18 +52,20 @@ function ThirdsPredict() {
     if (saved && saved.length > 0) setSelected(new Set(saved));
   }, [navigate]);
 
-  // When locked + actual group results exist, show actual 3rd-place teams
-  const displayThirds = useMemo<Record<string, string>>(() => {
-    if (locked && actual?.groupRankings && Object.keys(actual.groupRankings).length > 0) {
-      const result: Record<string, string> = {};
-      for (const g of GROUP_LETTERS) {
-        const team = (actual.groupRankings as Record<string, string[]>)[g]?.[2];
-        if (team) result[g] = team;
-      }
-      return result;
+  // Always show user's own predicted thirds (so checkmarks work correctly).
+  // Actual 3rd-place teams are shown as a comparison indicator per row.
+  const displayThirds = thirdsFromGroups;
+
+  // Actual 3rd-place team per group (for comparison when locked)
+  const actualThirds = useMemo<Record<string, string>>(() => {
+    if (!actual?.groupRankings || Object.keys(actual.groupRankings).length === 0) return {};
+    const result: Record<string, string> = {};
+    for (const g of GROUP_LETTERS) {
+      const team = (actual.groupRankings as Record<string, string[]>)[g]?.[2];
+      if (team) result[g] = team;
     }
-    return thirdsFromGroups;
-  }, [locked, actual, thirdsFromGroups]);
+    return result;
+  }, [actual]);
 
   const toggle = (team: string) => {
     if (locked) return;
@@ -79,7 +81,7 @@ function ThirdsPredict() {
   };
 
   const canContinue = selected.size === 8 || locked;
-  const showingActual = locked && !!actual?.groupRankings && Object.keys(actual.groupRankings).length > 0;
+  const hasActualData = Object.keys(actualThirds).length > 0;
 
   if (!user) return null;
 
@@ -99,9 +101,9 @@ function ThirdsPredict() {
 
         {locked && (
           <div className="mb-4 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm text-center">
-            {showingActual
-              ? "🏆 Showing actual third-place teams as groups complete"
-              : "🔒 Your picks are locked. Actual third-place standings will appear once groups finish."}
+            {hasActualData
+              ? "🏆 Your picks are shown. Actual results appear on the right as groups complete."
+              : "🔒 Your picks are locked. Actual standings will appear once groups finish."}
           </div>
         )}
 
@@ -118,6 +120,10 @@ function ThirdsPredict() {
               const isSelected = team ? selected.has(team) : false;
               const maxReached = !isSelected && selected.size >= 8;
               const flag = team ? getFlag(team) : null;
+              // Actual 3rd-place comparison
+              const actualTeam = actualThirds[g] ?? null;
+              const actualMatches = actualTeam && actualTeam === team;
+              const actualFlag = actualTeam ? getFlag(actualTeam) : null;
 
               return (
                 <li key={g}>
@@ -152,6 +158,22 @@ function ThirdsPredict() {
                       )}
                     </span>
                     <span className="text-xs text-muted-foreground">Group {g}</span>
+                    {/* Actual result badge when locked and data exists */}
+                    {locked && hasActualData && actualTeam && (
+                      <span className={[
+                        "ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0",
+                        actualMatches
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-red-500/20 text-red-400",
+                      ].join(" ")}>
+                        {actualMatches ? "✓" : (
+                          <>
+                            {actualFlag && <span className={`fi fi-${actualFlag}`} />}
+                            <span className="uppercase">{actualTeam}</span>
+                          </>
+                        )}
+                      </span>
+                    )}
                   </button>
                 </li>
               );

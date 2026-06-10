@@ -24,29 +24,34 @@ const ROUNDS = [
 ];
 
 // ── Accuracy circle ────────────────────────────────────────────────────────
-function AccuracyCircle({ pct, label, color = "var(--primary)" }: { pct: number; label: string; color?: string }) {
-  const r = 28;
+function AccuracyCircle({ pct, label, color = "var(--primary)", pending = false }: { pct: number; label: string; color?: string; pending?: boolean }) {
+  const r = 34;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
   return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="72" height="72" viewBox="0 0 72 72">
-        <circle cx="36" cy="36" r={r} fill="none" stroke="var(--border)" strokeWidth="6" />
-        <circle
-          cx="36" cy="36" r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth="6"
-          strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round"
-          transform="rotate(-90 36 36)"
-          style={{ transition: "stroke-dasharray 0.6s ease" }}
-        />
-        <text x="36" y="40" textAnchor="middle" fontSize="13" fontWeight="800" fill="currentColor">
-          {Math.round(pct)}%
-        </text>
-      </svg>
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</span>
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ filter: pending ? "none" : `drop-shadow(0 0 8px ${color}55)` }}>
+        <svg width="88" height="88" viewBox="0 0 88 88">
+          {/* Track */}
+          <circle cx="44" cy="44" r={r} fill="none" stroke="var(--border)" strokeWidth="7" />
+          {/* Progress */}
+          <circle
+            cx="44" cy="44" r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="7"
+            strokeDasharray={`${dash} ${circ}`}
+            strokeLinecap="round"
+            transform="rotate(-90 44 44)"
+            style={{ transition: "stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)" }}
+          />
+          {/* Percentage */}
+          <text x="44" y="47" textAnchor="middle" fontSize="15" fontWeight="800" fill="currentColor" letterSpacing="-0.5">
+            {Math.round(pct)}%
+          </text>
+        </svg>
+      </div>
+      <span className="text-[11px] uppercase tracking-[0.15em] font-bold" style={{ color }}>{label}</span>
     </div>
   );
 }
@@ -209,13 +214,25 @@ function MyPicksPage() {
         {/* Accuracy circles */}
         {accuracy && (
           <div className="max-w-3xl mx-auto px-2 mb-6">
-            <div className="rounded-xl border border-border bg-card p-4 flex flex-col items-center gap-3">
-              <div className="flex items-center justify-center gap-10">
-                <AccuracyCircle pct={accuracy.groupPct} label="Groups" color={accuracy.pending || !accuracy.hasGroupData ? "var(--muted-foreground)" : "var(--primary)"} />
-                <AccuracyCircle pct={accuracy.bracketPct} label="Bracket" color={accuracy.pending || !accuracy.hasBracketData ? "var(--muted-foreground)" : "var(--chart-2, #3b82f6)"} />
+            <div className="rounded-2xl border border-border bg-gradient-to-b from-card to-card/60 p-6 flex flex-col items-center gap-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Prediction Accuracy</p>
+              <div className="flex items-center justify-center gap-16">
+                <AccuracyCircle
+                  pct={accuracy.groupPct}
+                  label="Groups"
+                  color={accuracy.pending || !accuracy.hasGroupData ? "var(--muted-foreground)" : "var(--primary)"}
+                  pending={accuracy.pending}
+                />
+                <div className="w-px h-16 bg-border" />
+                <AccuracyCircle
+                  pct={accuracy.bracketPct}
+                  label="Bracket"
+                  color={accuracy.pending || !accuracy.hasBracketData ? "var(--muted-foreground)" : "#3b82f6"}
+                  pending={accuracy.pending}
+                />
               </div>
               {accuracy.pending && (
-                <p className="text-[11px] text-muted-foreground">Matches start June 11 — accuracy updates live</p>
+                <p className="text-[11px] text-muted-foreground/70 italic">Matches start June 11 — updates live as results come in</p>
               )}
             </div>
           </div>

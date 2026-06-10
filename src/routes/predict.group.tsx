@@ -1,7 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS } from "@/lib/wc/groupsData";
 import { getUser, loadGroups, saveGroups, isSubmitted } from "@/lib/wc/session";
+import { getActualResults } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { X } from "lucide-react";
 import { getFlag } from "@/lib/wc/flags";
@@ -25,6 +28,23 @@ function GroupPredict() {
   // ranked[group] is the click-order list (length 0..4)
   const [ranked, setRanked] = useState<Rankings>({});
   const [locked, setLocked] = useState(false);
+  const fetchActual = useServerFn(getActualResults);
+
+  const { data: actual } = useQuery({
+    queryKey: ["actual-results"],
+    queryFn: () => fetchActual(),
+    enabled: locked,
+  });
+
+  // When locked + actual results exist, show actual standings instead of user picks
+  const displayRanked = useMemo<Rankings>(() => {
+    if (locked && actual?.groupRankings && Object.keys(actual.groupRankings).length > 0) {
+      return actual.groupRankings as Rankings;
+    }
+    return ranked;
+  }, [locked, actual, ranked]);
+
+  const showingActual = locked && !!actual?.groupRankings && Object.keys(actual.groupRankings).length > 0;
 
   useEffect(() => {
     const u = getUser();
@@ -108,13 +128,15 @@ function GroupPredict() {
 
         {locked && (
           <div className="mb-4 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm text-center">
-            🔒 Your predictions have been submitted and are locked. Viewing only.
+            {showingActual
+              ? "🏆 Showing actual group standings as they develop"
+              : "🔒 Your predictions have been submitted. Actual standings will appear once matches begin."}
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {GROUP_LETTERS.map((g) => {
-            const picks = ranked[g] ?? [];
+            const picks = displayRanked[g] ?? [];
             const done = picks.length === 4;
             return (
               <div key={g} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -141,6 +163,8 @@ function GroupPredict() {
                 <ul className="p-2 space-y-1.5">
                   {[...picks, ...GROUPS[g].filter((t) => !picks.includes(t))].map((team) => {
                     const idx = picks.indexOf(team);
+                    // When showing actual results, mark unresolved spots as pending
+                    const isPending = showingActual && !picks.includes(team);
                     const isRanked = idx >= 0;
                     const isFourthAuto = isRanked && idx === 3;
                     return (

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { registerUser } from "@/lib/wc/predictions.functions";
+import { registerUser, getUserPrediction } from "@/lib/wc/predictions.functions";
 import { setUser, getUser, setSubmitted, saveGroups, savePicks } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { Trophy } from "lucide-react";
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const navigate = useNavigate();
   const register = useServerFn(registerUser);
+  const fetchPrediction = useServerFn(getUserPrediction);
   const existing = typeof window !== "undefined" ? getUser() : null;
   const [name, setName] = useState(existing?.name ?? "");
   const [loading, setLoading] = useState(false);
@@ -40,7 +41,14 @@ function Index() {
         savePicks({});
       }
       setUser({ userId: res.userId, name: res.name });
-      navigate({ to: "/predict/group" });
+      // Check if this user already has a prediction in DB — if so, go straight to My Picks
+      const existingPrediction = await fetchPrediction({ data: { userId: res.userId } });
+      if (existingPrediction) {
+        setSubmitted(true);
+        navigate({ to: "/my-picks" });
+      } else {
+        navigate({ to: "/predict/group" });
+      }
     } catch (err: any) {
       setError(err?.message ?? "Failed to register.");
     } finally {

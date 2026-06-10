@@ -99,10 +99,13 @@ export const savePredictions = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data }) => {
-    // Compute points if actual results exist
+    // Compute points only if actual results exist AND have real data (not empty objects)
     const actual = await supabaseAdmin.from("actual_results").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle();
     let breakdown: ScoreBreakdown = { groupPoints: 0, knockoutPoints: 0, perfectBonus: 0, championBonus: 0, total: 0 };
-    if (actual.data) {
+    const hasActualData = actual.data &&
+      actual.data.group_rankings_actual &&
+      Object.keys(actual.data.group_rankings_actual).length > 0;
+    if (hasActualData) {
       breakdown = calculatePoints(
         data.groupRankings,
         data.knockoutPicks,
@@ -164,7 +167,9 @@ export const getActualResults = createServerFn({ method: "GET" }).handler(async 
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data
+  // Only return actual results if they have real data
+  const hasData = data && data.group_rankings_actual && Object.keys(data.group_rankings_actual).length > 0;
+  return hasData
     ? {
         groupRankings: data.group_rankings_actual as GroupRankings,
         knockoutResults: data.knockout_results_actual as KnockoutPicks,

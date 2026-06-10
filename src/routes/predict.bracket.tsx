@@ -1,10 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
 import { getUser, loadGroups, loadPicks, savePicks, isSubmitted, setSubmitted } from "@/lib/wc/session";
-import { savePredictions } from "@/lib/wc/predictions.functions";
+import { savePredictions, getActualResults } from "@/lib/wc/predictions.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { toast } from "sonner";
 import { Trophy, Check } from "lucide-react";
@@ -31,12 +32,19 @@ const ROUNDS: { key: "R32" | "R16" | "QF" | "SF" | "F"; label: string; short: st
 function BracketPredict() {
   const navigate = useNavigate();
   const save = useServerFn(savePredictions);
+  const fetchActual = useServerFn(getActualResults);
   const [user, setUserState] = useState<ReturnType<typeof getUser>>(null);
   const [rankings, setRankings] = useState<Record<string, string[]> | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [locked, setLocked] = useState(false);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
+
+  const { data: actual } = useQuery({
+    queryKey: ["actual-results"],
+    queryFn: () => fetchActual(),
+    enabled: locked,
+  });
 
   useEffect(() => {
     const u = getUser();
@@ -54,10 +62,30 @@ function BracketPredict() {
     setPicks(loadPicks());
   }, [navigate]);
 
+  // When locked + actual results exist: use actual group rankings to build the bracket
+  // but only populate knockout results that are actually decided
+  const actualKnockout = useMemo<Record<string, string>>(() => {
+    if (!locked || !actual?.knockoutResults) return {};
+    return actual.knockoutResults as Record<string, string>;
+  }, [locked, actual]);
+
+  const displayRankings = useMemo<Record<string, string[]> | null>(() => {
+    if (!rankings) return null;
+    if (locked && actual?.groupRankings && Object.keys(actual.groupRankings).length > 0) {
+      return actual.groupRankings as Record<string, string[]>;
+    }
+    return rankings;
+  }, [rankings, locked, actual]);
+
+  // When locked: show actual bracket (only decided matches filled, rest TBD)
+  // When not locked: show user's prediction picks
   const bracket = useMemo<BracketMatch[]>(() => {
-    if (!rankings) return [];
-    return buildFullBracket(rankings, picks);
-  }, [rankings, picks]);
+    if (!displayRankings) return [];
+    if (locked) {
+      return buildFullBracket(displayRankings, actualKnockout);
+    }
+    return buildFullBracket(displayRankings, picks);
+  }, [displayRankings, picks, locked, actualKnockout]);
 
   const matchById = useMemo(() => {
     const m: Record<string, BracketMatch> = {};
@@ -198,7 +226,9 @@ function BracketPredict() {
 
         {locked && (
           <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm">
-            🔒 Your predictions are submitted and locked. Viewing only.
+            {actual?.knockoutResults && Object.keys(actual.knockoutResults).length > 0
+              ? "🏆 Showing actual bracket results as matches are decided"
+              : "🔒 Your predictions are locked. The bracket will fill in as matches are played."}
           </div>
         )}
 

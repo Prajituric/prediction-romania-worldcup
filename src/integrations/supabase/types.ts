@@ -17,23 +17,67 @@ export type Database = {
       actual_results: {
         Row: {
           group_rankings_actual: Json
+          group_standings_actual: Json
           id: number
           knockout_results_actual: Json
           updated_at: string
         }
         Insert: {
           group_rankings_actual: Json
+          group_standings_actual?: Json
           id?: number
           knockout_results_actual: Json
           updated_at?: string
         }
         Update: {
           group_rankings_actual?: Json
+          group_standings_actual?: Json
           id?: number
           knockout_results_actual?: Json
           updated_at?: string
         }
         Relationships: []
+      }
+      bets: {
+        Row: {
+          away_score: number
+          created_at: string
+          home_score: number
+          id: number
+          match_id: number
+          points: number
+          resolved: boolean
+          user_id: number
+        }
+        Insert: {
+          away_score: number
+          created_at?: string
+          home_score: number
+          id?: never
+          match_id: number
+          points?: number
+          resolved?: boolean
+          user_id: number
+        }
+        Update: {
+          away_score?: number
+          created_at?: string
+          home_score?: number
+          id?: never
+          match_id?: number
+          points?: number
+          resolved?: boolean
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       predictions: {
         Row: {

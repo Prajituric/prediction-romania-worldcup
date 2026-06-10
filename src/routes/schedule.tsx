@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, differenceInHours } from "date-fns";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { getSchedule, type WCMatch } from "@/lib/wc/schedule.functions";
 import { getFlag } from "@/lib/wc/flags";
 import { getCaptain } from "@/lib/wc/captains";
-import { saveBet, getBet, type Bet } from "@/lib/wc/bets";
-import { Calendar, MapPin, Clock, Flame, Lock, CheckCircle2 } from "lucide-react";
+import { placeBet, getUserBets, type BetInfo } from "@/lib/wc/bets.functions";
+import { getUser } from "@/lib/wc/session";
+import { Calendar, MapPin, Clock, Flame, Lock, CheckCircle2, Pencil } from "lucide-react";
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({ meta: [{ title: "Schedule — WC 2026" }] }),
@@ -60,14 +61,37 @@ function groupByDate(matches: WCMatch[]) {
 type Filter = "all" | "live" | "upcoming" | "finished";
 
 function SchedulePage() {
-  const fetch = useServerFn(getSchedule);
   const [filter, setFilter] = useState<Filter>("all");
+  const [userId, setUserId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const u = getUser();
+    if (u) setUserId(u.userId);
+  }, []);
+
+  const fetchSchedule = useServerFn(getSchedule);
+  const fetchUserBets = useServerFn(getUserBets);
 
   const { data: matches = [], isLoading } = useQuery({
     queryKey: ["schedule"],
-    queryFn: () => fetch(),
-    refetchInterval: 60_000, // refresh every minute
+    queryFn: () => fetchSchedule(),
+    refetchInterval: 60_000,
   });
+
+  const { data: betsData = [] } = useQuery({
+    queryKey: ["user-bets", userId],
+    queryFn: () => fetchUserBets({ data: { userId: userId! } }),
+    enabled: !!userId,
+  });
+
+  const betsMap = useMemo(() => {
+    const map: Record<number, BetInfo> = {};
+    for (const b of betsData) map[b.matchId] = b;
+    return map;
+  }, [betsData]);
+
+  const refreshBets = () => queryClient.invalidateQueries({ queryKey: ["user-bets", userId] });
 
   const filtered = useMemo(() => {
     if (filter === "live") return matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED");
@@ -77,7 +101,10 @@ function SchedulePage() {
   }, [matches, filter]);
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered]);
-  const liveCount = useMemo(() => matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED").length, [matches]);
+  const liveCount = useMemo(
+    () => matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED").length,
+    [matches],
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,8 +112,23 @@ function SchedulePage() {
       <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight uppercase mb-1">Schedule</h1>
-          <p className="text-muted-foreground text-sm">All World Cup 2026 matches</p>
+          <p className="text-muted-foreground text-sm">
+            All World Cup 2026 matches
+            {userId && <span className="ml-1 text-primary/70">· Click any upcoming match to predict the score</span>}
+          </p>
         </div>
+
+        {/* Scoring legend */}
+        {userId && (
+          <div className="mb-4 flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary/30 border border-border/50 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Score predictions:</span>
+            <span className="text-green-400 font-bold">+3</span> exact score
+            <span className="mx-1">·</span>
+            <span className="text-yellow-400 font-bold">+1</span> correct winner/draw
+            <span className="mx-1">·</span>
+            <span className="text-muted-foreground">+0</span> wrong
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto no-scrollbar">
@@ -104,7 +146,11 @@ function SchedulePage() {
               {f === "live" && liveCount > 0 && (
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
               )}
-              {f === "all" ? "All Matches" : f === "live" ? `Live${liveCount > 0 ? ` (${liveCount})` : ""}` : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "all"
+                ? "All Matches"
+                : f === "live"
+                ? `Live${liveCount > 0 ? ` (${liveCount})` : ""}`
+                : f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
@@ -112,13 +158,11 @@ function SchedulePage() {
         {isLoading && (
           <div className="text-center py-16 text-muted-foreground text-sm">Loading schedule…</div>
         )}
-
         {!isLoading && matches.length === 0 && (
           <div className="text-center py-16 text-muted-foreground text-sm">
-            Schedule not available yet. Check back closer to the tournament.
+            Schedule not available yet.
           </div>
         )}
-
         {!isLoading && matches.length > 0 && filtered.length === 0 && (
           <div className="text-center py-16 text-muted-foreground text-sm">No matches in this filter.</div>
         )}
@@ -137,7 +181,13 @@ function SchedulePage() {
               </div>
               <div className="space-y-2">
                 {dayMatches.map((m) => (
-                  <MatchCard key={m.id} match={m} />
+                  <MatchCard
+                    key={m.id}
+                    match={m}
+                    userId={userId}
+                    savedBet={betsMap[m.id] ?? null}
+                    onBetSaved={refreshBets}
+                  />
                 ))}
               </div>
             </section>
@@ -148,11 +198,20 @@ function SchedulePage() {
   );
 }
 
-function MatchCard({ match }: { match: WCMatch }) {
+interface MatchCardProps {
+  match: WCMatch;
+  userId: number | null;
+  savedBet: BetInfo | null;
+  onBetSaved: () => void;
+}
+
+function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
   const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
   const isFinished = match.status === "FINISHED";
   const isUpcoming = !isLive && !isFinished;
-  const betLocked = !isUpcoming;
+  // Bet is locked once match started OR if already resolved in DB
+  const betLocked = !isUpcoming || (savedBet?.resolved ?? false);
+  const canBet = !!userId && isUpcoming && !betLocked;
   const cd = isUpcoming ? countdown(match.utcDate) : null;
 
   const homeFlag = getFlag(match.homeTeam);
@@ -164,27 +223,51 @@ function MatchCard({ match }: { match: WCMatch }) {
   const awayWon = match.winner === "AWAY_TEAM";
 
   const [betOpen, setBetOpen] = useState(false);
-  const [bet, setBetState] = useState<Bet | null>(null);
-  const [homeInput, setHomeInput] = useState(0);
-  const [awayInput, setAwayInput] = useState(0);
+  const [homeInput, setHomeInput] = useState(savedBet?.homeScore ?? 0);
+  const [awayInput, setAwayInput] = useState(savedBet?.awayScore ?? 0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Sync inputs when savedBet loads/changes
   useEffect(() => {
-    const saved = getBet(match.id);
-    if (saved) { setBetState(saved); setHomeInput(saved.homeScore); setAwayInput(saved.awayScore); }
-  }, [match.id]);
+    if (savedBet) {
+      setHomeInput(savedBet.homeScore);
+      setAwayInput(savedBet.awayScore);
+    }
+  }, [savedBet]);
 
-  const lockBet = () => {
-    const b = { homeScore: homeInput, awayScore: awayInput };
-    saveBet(match.id, b);
-    setBetState(b);
-    setBetOpen(false);
+  const lockBet = async () => {
+    if (!userId) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await placeBet({ data: { userId, matchId: match.id, homeScore: homeInput, awayScore: awayInput } });
+      onBetSaved();
+      setBetOpen(false);
+    } catch (e: any) {
+      setSaveError(e?.message ?? "Failed to save bet.");
+    } finally {
+      setSaving(false);
+    }
   };
 
+  // Bet result badge color
+  const betPtsColor =
+    savedBet?.resolved
+      ? savedBet.points === 3
+        ? "text-green-400 border-green-500/40 bg-green-500/10"
+        : savedBet.points === 1
+        ? "text-yellow-400 border-yellow-500/40 bg-yellow-500/10"
+        : "text-muted-foreground border-border bg-secondary/30"
+      : null;
+
   return (
-    <div className={[
-      "rounded-xl border bg-card overflow-hidden transition",
-      isLive ? "border-red-500/50 shadow-[0_0_20px_-8px_rgba(239,68,68,0.4)]" : "border-border/60",
-    ].join(" ")}>
+    <div
+      className={[
+        "rounded-xl border bg-card overflow-hidden transition",
+        isLive ? "border-red-500/50 shadow-[0_0_20px_-8px_rgba(239,68,68,0.4)]" : "border-border/60",
+      ].join(" ")}
+    >
       {/* Top bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/40 bg-secondary/20">
         <div className="flex items-center gap-2">
@@ -198,11 +281,16 @@ function MatchCard({ match }: { match: WCMatch }) {
             </>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
+          {/* Resolved bet result badge */}
+          {savedBet?.resolved && betPtsColor && (
+            <span className={["text-[10px] font-bold px-2 py-0.5 rounded-full border", betPtsColor].join(" ")}>
+              {savedBet.points === 3 ? "⚡ Exact +3" : savedBet.points === 1 ? "✓ Winner +1" : "✗ +0"}
+            </span>
+          )}
           {isLive ? (
             <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 uppercase tracking-wider">
-              <Flame className="h-3 w-3" />
-              Live
+              <Flame className="h-3 w-3" /> Live
             </span>
           ) : isFinished ? (
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider">FT</span>
@@ -216,18 +304,27 @@ function MatchCard({ match }: { match: WCMatch }) {
         </div>
       </div>
 
-      {/* Match body — clickable to open bet */}
+      {/* Match body */}
       <button
         type="button"
-        onClick={() => !betLocked && setBetOpen((v) => !v)}
-        className={["w-full px-3 py-3 flex items-center gap-3 text-left", !betLocked ? "cursor-pointer hover:bg-secondary/10" : "cursor-default"].join(" ")}
+        onClick={() => canBet && setBetOpen((v) => !v)}
+        className={[
+          "w-full px-3 py-3 flex items-center gap-3 text-left",
+          canBet ? "cursor-pointer hover:bg-secondary/10" : "cursor-default",
+        ].join(" ")}
       >
         {/* Home team */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             {homeFlag && <span className={`fi fi-${homeFlag} text-lg shrink-0`} />}
             <div className="min-w-0">
-              <div className={["font-bold uppercase tracking-wide text-sm truncate", isFinished && awayWon ? "text-muted-foreground" : "text-foreground", homeWon ? "text-primary" : ""].join(" ")}>
+              <div
+                className={[
+                  "font-bold uppercase tracking-wide text-sm truncate",
+                  isFinished && awayWon ? "text-muted-foreground" : "text-foreground",
+                  homeWon ? "text-primary" : "",
+                ].join(" ")}
+              >
                 {match.homeTeam}
               </div>
               {homeCaptain && <div className="text-[10px] text-muted-foreground truncate">{homeCaptain}</div>}
@@ -235,21 +332,44 @@ function MatchCard({ match }: { match: WCMatch }) {
           </div>
         </div>
 
-        {/* Score / VS */}
-        <div className="shrink-0 text-center w-16">
+        {/* Score / VS / Bet display */}
+        <div className="shrink-0 text-center w-20">
           {isFinished || isLive ? (
-            <div className="flex items-center justify-center gap-1">
-              <span className={["text-xl font-extrabold tabular-nums", homeWon ? "text-primary" : "text-foreground"].join(" ")}>{match.homeScore ?? 0}</span>
-              <span className="text-muted-foreground text-sm">–</span>
-              <span className={["text-xl font-extrabold tabular-nums", awayWon ? "text-primary" : "text-foreground"].join(" ")}>{match.awayScore ?? 0}</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="flex items-center justify-center gap-1">
+                <span className={["text-xl font-extrabold tabular-nums", homeWon ? "text-primary" : "text-foreground"].join(" ")}>
+                  {match.homeScore ?? 0}
+                </span>
+                <span className="text-muted-foreground text-sm">–</span>
+                <span className={["text-xl font-extrabold tabular-nums", awayWon ? "text-primary" : "text-foreground"].join(" ")}>
+                  {match.awayScore ?? 0}
+                </span>
+              </div>
+              {savedBet && (
+                <span className="text-[10px] text-muted-foreground">
+                  Bet: {savedBet.homeScore}–{savedBet.awayScore}
+                </span>
+              )}
             </div>
-          ) : bet ? (
+          ) : savedBet ? (
             <div className="flex flex-col items-center gap-0.5">
               <span className="text-[10px] text-primary/70 font-semibold">Your bet</span>
-              <span className="text-sm font-extrabold tabular-nums text-primary">{bet.homeScore}–{bet.awayScore}</span>
+              <span className="text-sm font-extrabold tabular-nums text-primary">
+                {savedBet.homeScore}–{savedBet.awayScore}
+              </span>
+              {canBet && (
+                <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
+                  <Pencil className="h-2.5 w-2.5" /> edit
+                </span>
+              )}
             </div>
           ) : (
-            <span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">vs</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">vs</span>
+              {canBet && (
+                <span className="text-[9px] text-primary/60 font-medium">tap to bet</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -258,7 +378,13 @@ function MatchCard({ match }: { match: WCMatch }) {
           <div className="flex items-center gap-2 flex-row-reverse text-right">
             {awayFlag && <span className={`fi fi-${awayFlag} text-lg shrink-0`} />}
             <div className="min-w-0">
-              <div className={["font-bold uppercase tracking-wide text-sm truncate", isFinished && homeWon ? "text-muted-foreground" : "text-foreground", awayWon ? "text-primary" : ""].join(" ")}>
+              <div
+                className={[
+                  "font-bold uppercase tracking-wide text-sm truncate",
+                  isFinished && homeWon ? "text-muted-foreground" : "text-foreground",
+                  awayWon ? "text-primary" : "",
+                ].join(" ")}
+              >
                 {match.awayTeam}
               </div>
               {awayCaptain && <div className="text-[10px] text-muted-foreground truncate">{awayCaptain}</div>}
@@ -275,27 +401,57 @@ function MatchCard({ match }: { match: WCMatch }) {
         </div>
       )}
 
-      {/* Bet panel — inline expansion */}
-      {betLocked && bet && (
+      {/* Locked bet (live/finished, not yet resolved) */}
+      {!isUpcoming && savedBet && !savedBet.resolved && (
         <div className="px-3 pb-3 pt-1 border-t border-border/40 bg-secondary/10 flex items-center gap-2">
           <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-          <span className="text-[11px] text-muted-foreground">Your prediction: <span className="text-foreground font-bold">{bet.homeScore}–{bet.awayScore}</span></span>
+          <span className="text-[11px] text-muted-foreground">
+            Locked prediction: <span className="text-foreground font-bold">{savedBet.homeScore}–{savedBet.awayScore}</span>
+          </span>
         </div>
       )}
 
-      {betOpen && !betLocked && (
+      {/* No login message for upcoming matches */}
+      {isUpcoming && !userId && (
+        <div className="px-3 pb-2 border-t border-border/40 bg-secondary/10">
+          <p className="text-[10px] text-muted-foreground py-1.5 text-center">
+            Enter your name on the home page to place score predictions
+          </p>
+        </div>
+      )}
+
+      {/* Bet input panel */}
+      {betOpen && canBet && (
         <div className="px-3 pb-3 pt-2 border-t border-border/40 bg-secondary/10 animate-in fade-in slide-in-from-top-1 duration-150">
-          <p className="text-[11px] text-muted-foreground mb-3 text-center">Predict the final score</p>
+          <p className="text-[11px] text-muted-foreground mb-3 text-center">
+            Predict the final score · <span className="text-green-400">+3</span> exact · <span className="text-yellow-400">+1</span> correct outcome
+          </p>
           <div className="flex items-center justify-center gap-3">
             {/* Home score */}
             <div className="flex flex-col items-center gap-1">
               {homeFlag && <span className={`fi fi-${homeFlag} text-base`} />}
               <div className="flex items-center border border-border rounded-lg overflow-hidden bg-background">
-                <button type="button" onClick={() => setHomeInput((v) => Math.max(0, v - 1))} className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent">−</button>
-                <span className="px-3 py-1.5 text-xl font-extrabold tabular-nums min-w-[2.5rem] text-center">{homeInput}</span>
-                <button type="button" onClick={() => setHomeInput((v) => Math.min(20, v + 1))} className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent">+</button>
+                <button
+                  type="button"
+                  onClick={() => setHomeInput((v) => Math.max(0, v - 1))}
+                  className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent"
+                >
+                  −
+                </button>
+                <span className="px-3 py-1.5 text-xl font-extrabold tabular-nums min-w-[2.5rem] text-center">
+                  {homeInput}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setHomeInput((v) => Math.min(20, v + 1))}
+                  className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent"
+                >
+                  +
+                </button>
               </div>
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground truncate max-w-[80px] text-center">{match.homeTeam}</span>
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground truncate max-w-[80px] text-center">
+                {match.homeTeam}
+              </span>
             </div>
 
             <span className="text-muted-foreground font-bold text-lg mb-4">–</span>
@@ -304,21 +460,50 @@ function MatchCard({ match }: { match: WCMatch }) {
             <div className="flex flex-col items-center gap-1">
               {awayFlag && <span className={`fi fi-${awayFlag} text-base`} />}
               <div className="flex items-center border border-border rounded-lg overflow-hidden bg-background">
-                <button type="button" onClick={() => setAwayInput((v) => Math.max(0, v - 1))} className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent">−</button>
-                <span className="px-3 py-1.5 text-xl font-extrabold tabular-nums min-w-[2.5rem] text-center">{awayInput}</span>
-                <button type="button" onClick={() => setAwayInput((v) => Math.min(20, v + 1))} className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent">+</button>
+                <button
+                  type="button"
+                  onClick={() => setAwayInput((v) => Math.max(0, v - 1))}
+                  className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent"
+                >
+                  −
+                </button>
+                <span className="px-3 py-1.5 text-xl font-extrabold tabular-nums min-w-[2.5rem] text-center">
+                  {awayInput}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAwayInput((v) => Math.min(20, v + 1))}
+                  className="px-2.5 py-1.5 text-lg font-bold text-muted-foreground hover:bg-accent"
+                >
+                  +
+                </button>
               </div>
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground truncate max-w-[80px] text-center">{match.awayTeam}</span>
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground truncate max-w-[80px] text-center">
+                {match.awayTeam}
+              </span>
             </div>
           </div>
 
+          {saveError && (
+            <p className="text-xs text-destructive text-center mt-2">{saveError}</p>
+          )}
+
           <div className="flex gap-2 mt-3">
-            <button type="button" onClick={() => setBetOpen(false)} className="flex-1 py-2 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:bg-accent">
+            <button
+              type="button"
+              onClick={() => { setBetOpen(false); setSaveError(null); }}
+              className="flex-1 py-2 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:bg-accent"
+            >
               Cancel
             </button>
-            <button type="button" onClick={lockBet} className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/90">
+            <button
+              type="button"
+              onClick={lockBet}
+              disabled={saving}
+              className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-primary/90 disabled:opacity-50"
+            >
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Lock In
+              {saving ? "Saving…" : "Lock In"}
             </button>
           </div>
         </div>

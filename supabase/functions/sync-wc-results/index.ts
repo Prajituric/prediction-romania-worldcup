@@ -291,11 +291,55 @@ Deno.serve(async (_req) => {
       updated++;
     }
 
+    // ── 5. Resolve score bets for finished matches ────────────────────────
+    // Build a map of matchId → { homeScore, awayScore } for all FINISHED matches
+    const finishedScores: Record<number, { homeScore: number; awayScore: number }> = {};
+    for (const m of matchesData.matches ?? []) {
+      if (m.status !== "FINISHED") continue;
+      if (m.score?.fullTime?.home == null || m.score?.fullTime?.away == null) continue;
+      finishedScores[m.id as number] = {
+        homeScore: m.score.fullTime.home as number,
+        awayScore: m.score.fullTime.away as number,
+      };
+    }
+
+    const { data: unresolvedBets } = await supabase
+      .from("bets")
+      .select("id, match_id, home_score, away_score")
+      .eq("resolved", false);
+
+    let betsResolved = 0;
+    for (const bet of unresolvedBets ?? []) {
+      const actual = finishedScores[bet.match_id as number];
+      if (!actual) continue; // match not finished yet — skip
+
+      let pts = 0;
+      const exactScore =
+        (bet.home_score as number) === actual.homeScore &&
+        (bet.away_score as number) === actual.awayScore;
+
+      if (exactScore) {
+        pts = 3;
+      } else {
+        const actualOutcome =
+          actual.homeScore > actual.awayScore ? "HOME" :
+          actual.homeScore < actual.awayScore ? "AWAY" : "DRAW";
+        const betOutcome =
+          (bet.home_score as number) > (bet.away_score as number) ? "HOME" :
+          (bet.home_score as number) < (bet.away_score as number) ? "AWAY" : "DRAW";
+        if (actualOutcome === betOutcome) pts = 1;
+      }
+
+      await supabase.from("bets").update({ points: pts, resolved: true }).eq("id", bet.id);
+      betsResolved++;
+    }
+
     return json({
       ok: true,
       groupsResolved: Object.keys(groupRankings).length,
       knockoutResultsCount: Object.keys(knockoutResults).length,
       usersUpdated: updated,
+      betsResolved,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {

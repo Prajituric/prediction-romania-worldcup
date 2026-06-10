@@ -135,16 +135,27 @@ export const savePredictions = createServerFn({ method: "POST" })
   });
 
 export const getLeaderboard = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await supabaseAdmin
-    .from("predictions")
-    .select("points, user_id, users(name)")
-    .order("points", { ascending: false });
+  const [{ data: predictions, error }, { data: betRows }] = await Promise.all([
+    supabaseAdmin.from("predictions").select("points, user_id, users(name)"),
+    supabaseAdmin.from("bets").select("user_id, points").eq("resolved", true),
+  ]);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: any) => ({
-    userId: r.user_id as number,
-    name: r.users?.name ?? "Unknown",
-    points: r.points ?? 0,
-  }));
+
+  // Sum resolved bet points per user
+  const betPts: Record<number, number> = {};
+  for (const b of betRows ?? []) {
+    betPts[b.user_id] = (betPts[b.user_id] ?? 0) + (b.points ?? 0);
+  }
+
+  return (predictions ?? [])
+    .map((r: any) => ({
+      userId: r.user_id as number,
+      name: r.users?.name ?? "Unknown",
+      predictionPoints: r.points ?? 0,
+      betPoints: betPts[r.user_id] ?? 0,
+      points: (r.points ?? 0) + (betPts[r.user_id] ?? 0),
+    }))
+    .sort((a, b) => b.points - a.points);
 });
 
 export const getUserPrediction = createServerFn({ method: "POST" })

@@ -32,7 +32,7 @@ function Leaderboard() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold flex items-center gap-2"><Trophy className="h-7 w-7 text-primary" /> Ranking</h1>
         <p className="text-muted-foreground mt-1">
-          Groups: 3/2/1 pts per correct position · Bracket: 1 pt/match · Perfect bracket: +50 · Champion: +5 · Max 158 pts
+          Groups: 3/2/1 pts · Bracket: 1pt/match · Perfect: +50 · Champion: +5 · Score bets: exact +3, winner +1
         </p>
 
         <div className="mt-6 flex flex-col lg:flex-row gap-6 items-start">
@@ -49,7 +49,7 @@ function Leaderboard() {
                     <tr>
                       <th className="text-left px-4 py-2 w-12">#</th>
                       <th className="text-left px-4 py-2">Name</th>
-                      <th className="text-right px-4 py-2 w-24">Points</th>
+                      <th className="text-right px-4 py-2 w-28">Points</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -65,7 +65,14 @@ function Leaderboard() {
                             {row.name}
                           </Link>
                         </td>
-                        <td className="px-4 py-2 text-right font-bold text-primary">{row.points}</td>
+                        <td className="px-4 py-2 text-right">
+                          <span className="font-bold text-primary">{row.points}</span>
+                          {(row as any).betPoints > 0 && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {(row as any).predictionPoints} + <span className="text-yellow-400">{(row as any).betPoints} bets</span>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

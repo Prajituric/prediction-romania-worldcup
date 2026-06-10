@@ -218,10 +218,11 @@ function GroupPredict() {
             className="px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             title={!allDone ? "Rank all 12 groups first" : ""}
           >
-            Continue to bracket →
+            Continue to thirds →
           </button>
         </div>
       </main>
     </div>
   );
 }
+ 

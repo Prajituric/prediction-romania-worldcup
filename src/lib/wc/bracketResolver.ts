@@ -37,24 +37,24 @@ interface R32SlotSpec {
     | { kind: "remainingRunner" };
 }
 
-// Official FIFA 2026 Round-of-32 pairings as specified
+// Official FIFA 2026 Round-of-32 pairings
 export const R32_SPEC: R32SlotSpec[] = [
-  { id: "R32_1", slot1: { kind: "winner", group: "A" }, slot2: { kind: "third", groups: ["C", "D", "E"] } },
-  { id: "R32_2", slot1: { kind: "winner", group: "B" }, slot2: { kind: "runner", group: "F" } },
-  { id: "R32_3", slot1: { kind: "winner", group: "C" }, slot2: { kind: "third", groups: ["A", "B", "F"] } },
-  { id: "R32_4", slot1: { kind: "winner", group: "D" }, slot2: { kind: "runner", group: "E" } },
-  { id: "R32_5", slot1: { kind: "winner", group: "E" }, slot2: { kind: "third", groups: ["D", "E", "F"] } },
-  { id: "R32_6", slot1: { kind: "winner", group: "F" }, slot2: { kind: "runner", group: "D" } },
-  { id: "R32_7", slot1: { kind: "winner", group: "G" }, slot2: { kind: "third", groups: ["G", "H", "I"] } },
-  { id: "R32_8", slot1: { kind: "winner", group: "H" }, slot2: { kind: "runner", group: "I" } },
-  { id: "R32_9", slot1: { kind: "winner", group: "I" }, slot2: { kind: "third", groups: ["H", "I", "J"] } },
-  { id: "R32_10", slot1: { kind: "winner", group: "J" }, slot2: { kind: "runner", group: "K" } },
-  { id: "R32_11", slot1: { kind: "winner", group: "K" }, slot2: { kind: "third", groups: ["J", "K", "L"] } },
-  { id: "R32_12", slot1: { kind: "winner", group: "L" }, slot2: { kind: "runner", group: "G" } },
-  { id: "R32_13", slot1: { kind: "runner", group: "A" }, slot2: { kind: "runner", group: "B" } },
-  { id: "R32_14", slot1: { kind: "runner", group: "C" }, slot2: { kind: "runner", group: "H" } },
-  { id: "R32_15", slot1: { kind: "runner", group: "J" }, slot2: { kind: "runner", group: "L" } },
-  { id: "R32_16", slot1: { kind: "bestThird" }, slot2: { kind: "remainingRunner" } },
+  { id: "R32_1",  slot1: { kind: "runner", group: "A" }, slot2: { kind: "runner", group: "B" } },
+  { id: "R32_2",  slot1: { kind: "winner", group: "F" }, slot2: { kind: "runner", group: "C" } },
+  { id: "R32_3",  slot1: { kind: "winner", group: "C" }, slot2: { kind: "runner", group: "F" } },
+  { id: "R32_4",  slot1: { kind: "winner", group: "E" }, slot2: { kind: "third", groups: ["A","B","C","D","F"] } },
+  { id: "R32_5",  slot1: { kind: "runner", group: "E" }, slot2: { kind: "runner", group: "I" } },
+  { id: "R32_6",  slot1: { kind: "winner", group: "A" }, slot2: { kind: "third", groups: ["C","E","F","H","I"] } },
+  { id: "R32_7",  slot1: { kind: "runner", group: "D" }, slot2: { kind: "runner", group: "G" } },
+  { id: "R32_8",  slot1: { kind: "winner", group: "D" }, slot2: { kind: "third", groups: ["B","E","F","I","J"] } },
+  { id: "R32_9",  slot1: { kind: "winner", group: "I" }, slot2: { kind: "third", groups: ["C","D","F","G","H"] } },
+  { id: "R32_10", slot1: { kind: "winner", group: "K" }, slot2: { kind: "third", groups: ["D","E","I","J","L"] } },
+  { id: "R32_11", slot1: { kind: "runner", group: "K" }, slot2: { kind: "runner", group: "L" } },
+  { id: "R32_12", slot1: { kind: "winner", group: "G" }, slot2: { kind: "third", groups: ["A","E","H","I","J"] } },
+  { id: "R32_13", slot1: { kind: "winner", group: "B" }, slot2: { kind: "third", groups: ["E","F","G","I","J"] } },
+  { id: "R32_14", slot1: { kind: "winner", group: "H" }, slot2: { kind: "runner", group: "J" } },
+  { id: "R32_15", slot1: { kind: "winner", group: "J" }, slot2: { kind: "runner", group: "H" } },
+  { id: "R32_16", slot1: { kind: "winner", group: "L" }, slot2: { kind: "third", groups: ["E","H","I","J","K"] } },
 ];
 
 export function getQualifiedTeams(rankings: GroupRankings): {

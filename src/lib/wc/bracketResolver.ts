@@ -18,23 +18,16 @@ export interface QualifiedTeam {
   points: number;
 }
 
-// Spec: 3rd-place slot picker — among allowed groups, highest implied points; alphabetical tie-break.
-// For the 16th match runner-up slot: highest remaining runner-up among unplaced groups.
-
 interface R32SlotSpec {
   id: string;
   slot1:
     | { kind: "winner"; group: string }
     | { kind: "runner"; group: string }
-    | { kind: "third"; groups: string[] }
-    | { kind: "bestThird" }
-    | { kind: "remainingRunner" };
+    | { kind: "third"; groups: string[] };
   slot2:
     | { kind: "winner"; group: string }
     | { kind: "runner"; group: string }
-    | { kind: "third"; groups: string[] }
-    | { kind: "bestThird" }
-    | { kind: "remainingRunner" };
+    | { kind: "third"; groups: string[] };
 }
 
 // Official FIFA 2026 Round-of-32 pairings
@@ -59,8 +52,8 @@ export const R32_SPEC: R32SlotSpec[] = [
 
 export function getQualifiedTeams(rankings: GroupRankings): {
   byGroup: Record<string, { winner: QualifiedTeam; runner: QualifiedTeam; third: QualifiedTeam; fourth: { team: string; group: string } }>;
-  allThirds: QualifiedTeam[]; // ranked
-  qualifiedThirds: QualifiedTeam[]; // top 8
+  allThirds: QualifiedTeam[];
+  qualifiedThirds: QualifiedTeam[];
 } {
   const byGroup: Record<string, any> = {};
   const allThirds: QualifiedTeam[] = [];
@@ -73,132 +66,119 @@ export function getQualifiedTeams(rankings: GroupRankings): {
     }
     const winner: QualifiedTeam = { team: order[0], group: g, position: 1, points: POSITION_POINTS[1] };
     const runner: QualifiedTeam = { team: order[1], group: g, position: 2, points: POSITION_POINTS[2] };
-    const third: QualifiedTeam = { team: order[2], group: g, position: 3, points: POSITION_POINTS[3] };
+    const third: QualifiedTeam  = { team: order[2], group: g, position: 3, points: POSITION_POINTS[3] };
     const fourth = { team: order[3], group: g };
     byGroup[g] = { winner, runner, third, fourth };
     allThirds.push(third);
   }
 
-  const sortedThirds = [...allThirds].sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    return a.team.localeCompare(b.team);
-  });
+  const sortedThirds = [...allThirds].sort((a, b) =>
+    b.points !== a.points ? b.points - a.points : a.team.localeCompare(b.team)
+  );
   const qualifiedThirds = sortedThirds.slice(0, 8);
 
   return { byGroup, allThirds: sortedThirds, qualifiedThirds };
+}
+
+/**
+ * Bipartite matching (augmenting paths) to assign each qualified third-place
+ * team to exactly one R32 slot whose group pool contains that team's group.
+ * This avoids the greedy collision where the same group (e.g. H) is eligible
+ * for multiple slots but should fill only one.
+ *
+ * Returns a map: matchId -> team name for that slot.
+ */
+function matchThirdsToSlots(
+  slots: Array<{ matchId: string; groups: string[] }>,
+  thirds: QualifiedTeam[],
+): Record<string, string | null> {
+  const n = slots.length;
+  const m = thirds.length;
+
+  // adj[i][j] = slot i can accept third j
+  const adj: boolean[][] = slots.map((s) =>
+    thirds.map((t) => s.groups.includes(t.group))
+  );
+
+  // matchR[j] = which slot index is matched to third j (-1 = unmatched)
+  const matchR: number[] = Array(m).fill(-1);
+
+  function augment(slotIdx: number, visited: boolean[]): boolean {
+    for (let j = 0; j < m; j++) {
+      if (adj[slotIdx][j] && !visited[j]) {
+        visited[j] = true;
+        if (matchR[j] === -1 || augment(matchR[j], visited)) {
+          matchR[j] = slotIdx;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Run augmentation for each slot
+  for (let i = 0; i < n; i++) {
+    const visited = Array(m).fill(false);
+    augment(i, visited);
+  }
+
+  // Build matchL AFTER all augmentations (matchR may be reassigned during path augmentation)
+  const matchL: number[] = Array(n).fill(-1);
+  for (let j = 0; j < m; j++) {
+    if (matchR[j] >= 0) matchL[matchR[j]] = j;
+  }
+
+  const result: Record<string, string | null> = {};
+  for (let i = 0; i < n; i++) {
+    result[slots[i].matchId] = matchL[i] >= 0 ? thirds[matchL[i]].team : null;
+  }
+  return result;
 }
 
 export interface ResolvedR32Match {
   id: string;
   team1: string | null;
   team2: string | null;
-  label1: string; // e.g. "1A"
+  label1: string;
   label2: string;
 }
 
 export function resolveR32(rankings: GroupRankings, selectedThirds?: string[]): ResolvedR32Match[] {
   const { byGroup, allThirds, qualifiedThirds: autoQualified } = getQualifiedTeams(rankings);
 
-  // If user explicitly chose 8 thirds, use those; otherwise fall back to auto top-8 by points
   const qualifiedThirds =
     selectedThirds && selectedThirds.length === 8
       ? allThirds.filter((t) => selectedThirds.includes(t.team))
       : autoQualified;
 
-  const qualifiedThirdSet = new Set(qualifiedThirds.map((t) => t.group));
-
-  // Available pools
-  const thirdsByGroup: Record<string, QualifiedTeam | undefined> = {};
-  for (const t of qualifiedThirds) thirdsByGroup[t.group] = t;
-
-  const usedTeams = new Set<string>();
-  const matches: ResolvedR32Match[] = [];
-
-  const pickThirdFromGroups = (groups: string[]): QualifiedTeam | undefined => {
-    const candidates = groups
-      .filter((g) => qualifiedThirdSet.has(g) && thirdsByGroup[g] && !usedTeams.has(thirdsByGroup[g]!.team))
-      .map((g) => thirdsByGroup[g]!);
-    candidates.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      return a.team.localeCompare(b.team);
-    });
-    return candidates[0];
-  };
-
-  const resolveSlot = (
-    spec: R32SlotSpec["slot1"],
-    contextMatches: ResolvedR32Match[],
-  ): { team: string | null; label: string } => {
-    if (spec.kind === "winner") {
-      const t = byGroup[spec.group]?.winner;
-      if (t && !usedTeams.has(t.team)) {
-        usedTeams.add(t.team);
-        return { team: t.team, label: `1${spec.group}` };
-      }
-      return { team: null, label: `1${spec.group}` };
-    }
-    if (spec.kind === "runner") {
-      const t = byGroup[spec.group]?.runner;
-      if (t && !usedTeams.has(t.team)) {
-        usedTeams.add(t.team);
-        return { team: t.team, label: `2${spec.group}` };
-      }
-      return { team: null, label: `2${spec.group}` };
-    }
-    if (spec.kind === "third") {
-      const t = pickThirdFromGroups(spec.groups);
-      const label = `3${spec.groups.join("/")}`;
-      if (t) {
-        usedTeams.add(t.team);
-        return { team: t.team, label };
-      }
-      return { team: null, label };
-    }
-    if (spec.kind === "bestThird") {
-      // any qualified third not yet used
-      const remaining = qualifiedThirds.filter((t) => !usedTeams.has(t.team));
-      remaining.sort((a, b) => (b.points - a.points) || a.team.localeCompare(b.team));
-      const t = remaining[0];
-      if (t) {
-        usedTeams.add(t.team);
-        return { team: t.team, label: "Best 3rd" };
-      }
-      return { team: null, label: "Best 3rd" };
-    }
-    if (spec.kind === "remainingRunner") {
-      // Try a runner-up first; if none remain (all 12 are placed in R32_1..R32_15),
-      // fall back to the next-best remaining qualified team (a 3rd-place team).
-      const remainingRunners = GROUP_LETTERS
-        .map((g) => byGroup[g]?.runner as QualifiedTeam | undefined)
-        .filter((t): t is QualifiedTeam => !!t && !usedTeams.has(t.team));
-      if (remainingRunners.length > 0) {
-        remainingRunners.sort((a, b) => a.team.localeCompare(b.team));
-        const t = remainingRunners[0];
-        usedTeams.add(t.team);
-        return { team: t.team, label: "Remaining 2nd" };
-      }
-      const remainingThirds = qualifiedThirds.filter((t) => !usedTeams.has(t.team));
-      remainingThirds.sort((a, b) => (b.points - a.points) || a.team.localeCompare(b.team));
-      const t = remainingThirds[0];
-      if (t) {
-        usedTeams.add(t.team);
-        return { team: t.team, label: "Best remaining 3rd" };
-      }
-      return { team: null, label: "Remaining 2nd" };
-    }
-    return { team: null, label: "?" };
-  };
-
+  // Collect all "third" slots and run bipartite matching
+  const thirdSlots: Array<{ matchId: string; groups: string[] }> = [];
   for (const spec of R32_SPEC) {
-    const s1 = resolveSlot(spec.slot1, matches);
-    const s2 = resolveSlot(spec.slot2, matches);
-    matches.push({
-      id: spec.id,
-      team1: s1.team,
-      team2: s2.team,
-      label1: s1.label,
-      label2: s2.label,
-    });
+    const slot = spec.slot1.kind === "third" ? spec.slot1
+                : spec.slot2.kind === "third" ? spec.slot2
+                : null;
+    if (slot) thirdSlots.push({ matchId: spec.id, groups: slot.groups });
+  }
+  const thirdAssignment = matchThirdsToSlots(thirdSlots, qualifiedThirds);
+
+  // Resolve matches
+  const matches: ResolvedR32Match[] = [];
+  for (const spec of R32_SPEC) {
+    const resolve = (slot: R32SlotSpec["slot1"]): { team: string | null; label: string } => {
+      if (slot.kind === "winner") {
+        return { team: byGroup[slot.group]?.winner?.team ?? null, label: `1${slot.group}` };
+      }
+      if (slot.kind === "runner") {
+        return { team: byGroup[slot.group]?.runner?.team ?? null, label: `2${slot.group}` };
+      }
+      // kind === "third"
+      const team = thirdAssignment[spec.id] ?? null;
+      return { team, label: "Best 3rd" };
+    };
+
+    const s1 = resolve(spec.slot1);
+    const s2 = resolve(spec.slot2);
+    matches.push({ id: spec.id, team1: s1.team, team2: s2.team, label1: s1.label, label2: s2.label });
   }
 
   return matches;
@@ -222,7 +202,7 @@ export function buildFullBracket(
   const r32Resolved = resolveR32(rankings, selectedThirds);
   const matches: BracketMatch[] = r32Resolved.map((m) => ({
     id: m.id,
-    round: "R32",
+    round: "R32" as const,
     team1: m.team1,
     team2: m.team2,
     label1: m.label1,
@@ -233,11 +213,7 @@ export function buildFullBracket(
   const matchById: Record<string, BracketMatch> = {};
   for (const m of matches) matchById[m.id] = m;
 
-  const buildNext = (
-    prevIds: string[],
-    nextIds: string[],
-    round: BracketMatch["round"],
-  ) => {
+  const buildNext = (prevIds: string[], nextIds: string[], round: BracketMatch["round"]) => {
     for (let i = 0; i < nextIds.length; i++) {
       const a = matchById[prevIds[i * 2]];
       const b = matchById[prevIds[i * 2 + 1]];
@@ -251,10 +227,7 @@ export function buildFullBracket(
         label2: `W ${b?.id ?? ""}`,
         winner: picks[id] ?? null,
       };
-      // sanity: if a pick exists but team isn't one of the two available teams, ignore it
-      if (m.winner && m.winner !== m.team1 && m.winner !== m.team2) {
-        m.winner = null;
-      }
+      if (m.winner && m.winner !== m.team1 && m.winner !== m.team2) m.winner = null;
       matches.push(m);
       matchById[id] = m;
     }

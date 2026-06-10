@@ -69,8 +69,11 @@ function ViewUserPredictions() {
   const { data: actual } = useQuery({ queryKey: ["actual-results"], queryFn: () => fetchActual() });
 
   const accuracy = useMemo(() => {
-    if (!data || !actual) return null;
-    return calcAccuracy(data.groupRankings as Record<string, string[]>, data.knockoutPicks as Record<string, string>, actual.groupRankings as Record<string, string[]>, actual.knockoutResults as Record<string, string>);
+    if (!data) return null;
+    if (!actual) {
+      return { groupPct: 100, bracketPct: 100, hasGroupData: false, hasBracketData: false, pending: true };
+    }
+    return { ...calcAccuracy(data.groupRankings as Record<string, string[]>, data.knockoutPicks as Record<string, string>, actual.groupRankings as Record<string, string[]>, actual.knockoutResults as Record<string, string>), pending: false };
   }, [data, actual]);
 
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
@@ -179,10 +182,15 @@ function ViewUserPredictions() {
         </div>
 
         {/* Accuracy circles */}
-        {accuracy && (accuracy.hasGroupData || accuracy.hasBracketData) && (
-          <div className="mb-6 rounded-xl border border-border bg-card p-4 flex items-center justify-center gap-10">
-            {accuracy.hasGroupData && <AccuracyCircle pct={accuracy.groupPct} label="Groups" />}
-            {accuracy.hasBracketData && <AccuracyCircle pct={accuracy.bracketPct} label="Bracket" color="var(--chart-2, #3b82f6)" />}
+        {accuracy && (
+          <div className="mb-6 rounded-xl border border-border bg-card p-4 flex flex-col items-center gap-3">
+            <div className="flex items-center justify-center gap-10">
+              <AccuracyCircle pct={accuracy.groupPct} label="Groups" color={accuracy.pending || !accuracy.hasGroupData ? "var(--muted-foreground)" : "var(--primary)"} />
+              <AccuracyCircle pct={accuracy.bracketPct} label="Bracket" color={accuracy.pending || !accuracy.hasBracketData ? "var(--muted-foreground)" : "var(--chart-2, #3b82f6)"} />
+            </div>
+            {accuracy.pending && (
+              <p className="text-[11px] text-muted-foreground">Matches start June 11 — accuracy updates live</p>
+            )}
           </div>
         )}
 

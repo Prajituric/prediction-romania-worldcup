@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as MyPicksRouteImport } from './routes/my-picks'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PredictGroupRouteImport } from './routes/predict.group'
@@ -16,6 +18,16 @@ import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
 import { Route as LeaderboardUserIdRouteImport } from './routes/leaderboard.$userId'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
 
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyPicksRoute = MyPicksRouteImport.update({
+  id: '/my-picks',
+  path: '/my-picks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -50,6 +62,8 @@ const AdminResultsRoute = AdminResultsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/leaderboard': typeof LeaderboardRouteWithChildren
+  '/my-picks': typeof MyPicksRoute
+  '/schedule': typeof ScheduleRoute
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/leaderboard': typeof LeaderboardRouteWithChildren
+  '/my-picks': typeof MyPicksRoute
+  '/schedule': typeof ScheduleRoute
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
@@ -67,6 +83,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/leaderboard': typeof LeaderboardRouteWithChildren
+  '/my-picks': typeof MyPicksRoute
+  '/schedule': typeof ScheduleRoute
   '/admin/results': typeof AdminResultsRoute
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
@@ -77,6 +95,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/leaderboard'
+    | '/my-picks'
+    | '/schedule'
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
@@ -85,6 +105,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/leaderboard'
+    | '/my-picks'
+    | '/schedule'
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
@@ -93,6 +115,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/leaderboard'
+    | '/my-picks'
+    | '/schedule'
     | '/admin/results'
     | '/leaderboard/$userId'
     | '/predict/bracket'
@@ -102,6 +126,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LeaderboardRoute: typeof LeaderboardRouteWithChildren
+  MyPicksRoute: typeof MyPicksRoute
+  ScheduleRoute: typeof ScheduleRoute
   AdminResultsRoute: typeof AdminResultsRoute
   PredictBracketRoute: typeof PredictBracketRoute
   PredictGroupRoute: typeof PredictGroupRoute
@@ -109,6 +135,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-picks': {
+      id: '/my-picks'
+      path: '/my-picks'
+      fullPath: '/my-picks'
+      preLoaderRoute: typeof MyPicksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leaderboard': {
       id: '/leaderboard'
       path: '/leaderboard'
@@ -169,6 +209,8 @@ const LeaderboardRouteWithChildren = LeaderboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LeaderboardRoute: LeaderboardRouteWithChildren,
+  MyPicksRoute: MyPicksRoute,
+  ScheduleRoute: ScheduleRoute,
   AdminResultsRoute: AdminResultsRoute,
   PredictBracketRoute: PredictBracketRoute,
   PredictGroupRoute: PredictGroupRoute,

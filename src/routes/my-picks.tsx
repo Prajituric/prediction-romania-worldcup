@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
 import { getUserPrediction, getActualResults } from "@/lib/wc/predictions.functions";
+import { getUserBetPointsTotal } from "@/lib/wc/bets.functions";
 import { getUser } from "@/lib/wc/session";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { Trophy, Check } from "lucide-react";
@@ -92,6 +93,7 @@ function MyPicksPage() {
   const [userId, setUserId] = useState<number | null>(null);
   const fetchPrediction = useServerFn(getUserPrediction);
   const fetchActual = useServerFn(getActualResults);
+  const fetchBetPts = useServerFn(getUserBetPointsTotal);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
 
   useEffect(() => {
@@ -111,6 +113,14 @@ function MyPicksPage() {
     queryFn: () => fetchActual(),
   });
 
+  const { data: betPts = 0 } = useQuery({
+    queryKey: ["my-bet-pts", userId],
+    queryFn: () => fetchBetPts({ data: { userId: userId! } }),
+    enabled: !!userId,
+  });
+
+  const totalPoints = (data?.points ?? 0) + betPts;
+
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
   const picks = (data?.knockoutPicks as Record<string, string>) ?? {};
 
@@ -127,16 +137,21 @@ function MyPicksPage() {
 
   const accuracy = useMemo(() => {
     if (!data) return null;
-    if (!actual) {
-      // No matches played yet — show 100% as "still possible"
-      return { groupPct: 100, bracketPct: 100, hasGroupData: false, hasBracketData: false, pending: true };
-    }
-    return { ...calcAccuracy(
-      data.groupRankings as Record<string, string[]>,
-      data.knockoutPicks as Record<string, string>,
-      actual.groupRankings as Record<string, string[]>,
-      actual.knockoutResults as Record<string, string>,
-    ), pending: false };
+    const calc = actual
+      ? calcAccuracy(
+          data.groupRankings as Record<string, string[]>,
+          data.knockoutPicks as Record<string, string>,
+          actual.groupRankings as Record<string, string[]>,
+          actual.knockoutResults as Record<string, string>,
+        )
+      : { groupPct: 0, bracketPct: 0, hasGroupData: false, hasBracketData: false };
+
+    return {
+      groupPct: calc.hasGroupData ? calc.groupPct : 100,
+      bracketPct: calc.hasBracketData ? calc.bracketPct : 100,
+      hasGroupData: calc.hasGroupData,
+      hasBracketData: calc.hasBracketData,
+    };
   }, [data, actual]);
 
   if (!userId || isLoading) {
@@ -208,7 +223,13 @@ function MyPicksPage() {
         {/* Header */}
         <div className="max-w-3xl mx-auto px-2 mb-5">
           <h1 className="text-3xl font-bold tracking-tight uppercase mb-1">My Picks</h1>
-          <p className="text-muted-foreground text-sm">{data.points} pts · locked predictions</p>
+          <p className="text-muted-foreground text-sm">
+            <span className="text-primary font-semibold">{totalPoints} pts</span>
+            {betPts > 0 && (
+              <span className="text-muted-foreground"> ({data.points} bracket + <span className="text-yellow-400">{betPts} bets</span>)</span>
+            )}
+            <span className="text-muted-foreground"> · locked predictions</span>
+          </p>
         </div>
 
         {/* Accuracy circles */}
@@ -220,19 +241,23 @@ function MyPicksPage() {
                 <AccuracyCircle
                   pct={accuracy.groupPct}
                   label="Groups"
-                  color={accuracy.pending || !accuracy.hasGroupData ? "var(--muted-foreground)" : "var(--primary)"}
-                  pending={accuracy.pending}
+                  color={accuracy.hasGroupData ? "var(--primary)" : "var(--muted-foreground)"}
+                  pending={!accuracy.hasGroupData}
                 />
                 <div className="w-px h-16 bg-border" />
                 <AccuracyCircle
                   pct={accuracy.bracketPct}
                   label="Bracket"
-                  color={accuracy.pending || !accuracy.hasBracketData ? "var(--muted-foreground)" : "#3b82f6"}
-                  pending={accuracy.pending}
+                  color={accuracy.hasBracketData ? "#3b82f6" : "var(--muted-foreground)"}
+                  pending={!accuracy.hasBracketData}
                 />
               </div>
-              {accuracy.pending && (
-                <p className="text-[11px] text-muted-foreground/70 italic">Matches start June 11 — updates live as results come in</p>
+              {(!accuracy.hasGroupData || !accuracy.hasBracketData) && (
+                <p className="text-[11px] text-muted-foreground/70 italic">
+                  {!accuracy.hasGroupData
+                    ? "Accuracy updates as matches are played"
+                    : "Bracket accuracy updates once knockout matches begin"}
+                </p>
               )}
             </div>
           </div>

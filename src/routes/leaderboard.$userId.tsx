@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { GROUPS, GROUP_LETTERS, R32_IDS, R16_IDS, QF_IDS, SF_IDS, FINAL_ID } from "@/lib/wc/groupsData";
 import { buildFullBracket, type BracketMatch } from "@/lib/wc/bracketResolver";
 import { getUserPrediction, getActualResults } from "@/lib/wc/predictions.functions";
+import { getUserBetPointsTotal } from "@/lib/wc/bets.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { Trophy, Check, ChevronLeft } from "lucide-react";
 import { getFlag } from "@/lib/wc/flags";
@@ -61,6 +62,7 @@ function ViewUserPredictions() {
   const { userId } = Route.useParams();
   const fetchPrediction = useServerFn(getUserPrediction);
   const fetchActual = useServerFn(getActualResults);
+  const fetchBetPts = useServerFn(getUserBetPointsTotal);
   const [activeRound, setActiveRound] = useState<(typeof ROUNDS)[number]["key"]>("R32");
 
   const { data, isLoading } = useQuery({
@@ -70,12 +72,31 @@ function ViewUserPredictions() {
 
   const { data: actual } = useQuery({ queryKey: ["actual-results"], queryFn: () => fetchActual() });
 
+  const { data: betPts = 0 } = useQuery({
+    queryKey: ["user-bet-pts", userId],
+    queryFn: () => fetchBetPts({ data: { userId: Number(userId) } }),
+  });
+
+  const totalPoints = (data?.points ?? 0) + betPts;
+
   const accuracy = useMemo(() => {
     if (!data) return null;
-    if (!actual) {
-      return { groupPct: 100, bracketPct: 100, hasGroupData: false, hasBracketData: false, pending: true };
-    }
-    return { ...calcAccuracy(data.groupRankings as Record<string, string[]>, data.knockoutPicks as Record<string, string>, actual.groupRankings as Record<string, string[]>, actual.knockoutResults as Record<string, string>), pending: false };
+    const calc = actual
+      ? calcAccuracy(
+          data.groupRankings as Record<string, string[]>,
+          data.knockoutPicks as Record<string, string>,
+          actual.groupRankings as Record<string, string[]>,
+          actual.knockoutResults as Record<string, string>,
+        )
+      : { groupPct: 0, bracketPct: 0, hasGroupData: false, hasBracketData: false };
+
+    return {
+      // When no data for a category yet, show 100% (still possible) in muted colour
+      groupPct: calc.hasGroupData ? calc.groupPct : 100,
+      bracketPct: calc.hasBracketData ? calc.bracketPct : 100,
+      hasGroupData: calc.hasGroupData,
+      hasBracketData: calc.hasBracketData,
+    };
   }, [data, actual]);
 
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
@@ -176,7 +197,14 @@ function ViewUserPredictions() {
             <ChevronLeft className="h-4 w-4" /> Ranking
           </Link>
           <span className="text-muted-foreground">/</span>
-          <span className="font-semibold">Predictions · {data.points} pts</span>
+          <span className="font-semibold">
+            Predictions · {totalPoints} pts
+            {betPts > 0 && (
+              <span className="ml-1 text-xs text-muted-foreground font-normal">
+                ({data.points} bracket + <span className="text-yellow-400">{betPts} bets</span>)
+              </span>
+            )}
+          </span>
         </div>
 
         <div className="mb-5 p-3 rounded-md border border-primary/40 bg-primary/5 text-sm text-center">
@@ -191,19 +219,23 @@ function ViewUserPredictions() {
               <AccuracyCircle
                 pct={accuracy.groupPct}
                 label="Groups"
-                color={accuracy.pending || !accuracy.hasGroupData ? "var(--muted-foreground)" : "var(--primary)"}
-                pending={accuracy.pending}
+                color={accuracy.hasGroupData ? "var(--primary)" : "var(--muted-foreground)"}
+                pending={!accuracy.hasGroupData}
               />
               <div className="w-px h-16 bg-border" />
               <AccuracyCircle
                 pct={accuracy.bracketPct}
                 label="Bracket"
-                color={accuracy.pending || !accuracy.hasBracketData ? "var(--muted-foreground)" : "#3b82f6"}
-                pending={accuracy.pending}
+                color={accuracy.hasBracketData ? "#3b82f6" : "var(--muted-foreground)"}
+                pending={!accuracy.hasBracketData}
               />
             </div>
-            {accuracy.pending && (
-              <p className="text-[11px] text-muted-foreground/70 italic">Matches start June 11 — updates live as results come in</p>
+            {(!accuracy.hasGroupData || !accuracy.hasBracketData) && (
+              <p className="text-[11px] text-muted-foreground/70 italic">
+                {!accuracy.hasGroupData
+                  ? "Accuracy updates as matches are played"
+                  : "Bracket accuracy updates once knockout matches begin"}
+              </p>
             )}
           </div>
         )}

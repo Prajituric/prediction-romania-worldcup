@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getUser, isSubmitted } from "@/lib/wc/session";
+import { PushBell } from "./PushBell";
 
 export function SiteHeader() {
   const [showMyPicks, setShowMyPicks] = useState(false);
@@ -24,6 +25,7 @@ export function SiteHeader() {
           {showMyPicks && <Link to="/my-picks" className="hover:text-primary font-medium text-primary">My Picks</Link>}
           <Link to="/leaderboard" className="hover:text-primary">Ranking</Link>
           <Link to="/admin/results" className="hover:text-primary text-muted-foreground hidden sm:inline">Admin</Link>
+          <PushBell variant="icon" />
         </nav>
       </div>
     </header>

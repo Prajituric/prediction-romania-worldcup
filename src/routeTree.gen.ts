@@ -17,6 +17,7 @@ import { Route as PredictGroupRouteImport } from './routes/predict.group'
 import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
 import { Route as LeaderboardUserIdRouteImport } from './routes/leaderboard.$userId'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
+import { Route as ApiPublicHooksSendMatchRemindersRouteImport } from './routes/api/public/hooks/send-match-reminders'
 
 const ScheduleRoute = ScheduleRouteImport.update({
   id: '/schedule',
@@ -58,6 +59,12 @@ const AdminResultsRoute = AdminResultsRouteImport.update({
   path: '/admin/results',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksSendMatchRemindersRoute =
+  ApiPublicHooksSendMatchRemindersRouteImport.update({
+    id: '/api/public/hooks/send-match-reminders',
+    path: '/api/public/hooks/send-match-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/api/public/hooks/send-match-reminders': typeof ApiPublicHooksSendMatchRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +86,7 @@ export interface FileRoutesByTo {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/api/public/hooks/send-match-reminders': typeof ApiPublicHooksSendMatchRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +98,7 @@ export interface FileRoutesById {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/api/public/hooks/send-match-reminders': typeof ApiPublicHooksSendMatchRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/api/public/hooks/send-match-reminders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/api/public/hooks/send-match-reminders'
   id:
     | '__root__'
     | '/'
@@ -121,6 +133,7 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/api/public/hooks/send-match-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,6 +144,7 @@ export interface RootRouteChildren {
   AdminResultsRoute: typeof AdminResultsRoute
   PredictBracketRoute: typeof PredictBracketRoute
   PredictGroupRoute: typeof PredictGroupRoute
+  ApiPublicHooksSendMatchRemindersRoute: typeof ApiPublicHooksSendMatchRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -191,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/send-match-reminders': {
+      id: '/api/public/hooks/send-match-reminders'
+      path: '/api/public/hooks/send-match-reminders'
+      fullPath: '/api/public/hooks/send-match-reminders'
+      preLoaderRoute: typeof ApiPublicHooksSendMatchRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -214,7 +235,18 @@ const rootRouteChildren: RootRouteChildren = {
   AdminResultsRoute: AdminResultsRoute,
   PredictBracketRoute: PredictBracketRoute,
   PredictGroupRoute: PredictGroupRoute,
+  ApiPublicHooksSendMatchRemindersRoute: ApiPublicHooksSendMatchRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

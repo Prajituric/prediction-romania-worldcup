@@ -158,7 +158,6 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
   // Points are driven exclusively by the sync-wc-results Edge Function which
   // only runs once the tournament has started (2026-06-11). Guard against any
   // stale test data in the DB by also requiring the tournament to have begun.
-  const TOURNAMENT_START = new Date("2026-06-11T00:00:00Z");
   const tournamentStarted = new Date() >= TOURNAMENT_START;
   const hasActualResults =
     tournamentStarted &&
@@ -199,14 +198,19 @@ export const getUserPrediction = createServerFn({ method: "POST" })
       : null;
   });
 
+const TOURNAMENT_START = new Date("2026-06-11T00:00:00Z");
+
 export const getActualResults = createServerFn({ method: "GET" }).handler(async () => {
+  // Never surface actual results before the tournament begins — guards against
+  // stale test data in the DB affecting accuracy displays and bracket views.
+  if (new Date() < TOURNAMENT_START) return null;
+
   const { data } = await supabaseAdmin
     .from("actual_results")
     .select("*")
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  // Only return actual results if they have real data
   const hasData = data && data.group_rankings_actual && Object.keys(data.group_rankings_actual).length > 0;
   return hasData
     ? {

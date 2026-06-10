@@ -70,11 +70,13 @@ function ViewUserPredictions() {
     queryFn: () => fetchPrediction({ data: { userId: Number(userId) } }),
   });
 
-  const { data: actual } = useQuery({ queryKey: ["actual-results"], queryFn: () => fetchActual() });
+  const POLL_MS = 3 * 60 * 1000;
+  const { data: actual } = useQuery({ queryKey: ["actual-results"], queryFn: () => fetchActual(), refetchInterval: POLL_MS });
 
   const { data: betPts = 0 } = useQuery({
     queryKey: ["user-bet-pts", userId],
     queryFn: () => fetchBetPts({ data: { userId: Number(userId) } }),
+    refetchInterval: POLL_MS,
   });
 
   const totalPoints = (data?.points ?? 0) + betPts;

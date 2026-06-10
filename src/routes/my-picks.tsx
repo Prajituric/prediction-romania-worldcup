@@ -102,21 +102,27 @@ function MyPicksPage() {
     setUserId(u.userId);
   }, [navigate]);
 
+  // Poll every 3 minutes so accuracy, points and bracket update live as games finish
+  const POLL_MS = 3 * 60 * 1000;
+
   const { data, isLoading } = useQuery({
     queryKey: ["my-picks", userId],
     queryFn: () => fetchPrediction({ data: { userId: userId! } }),
     enabled: !!userId,
+    refetchInterval: POLL_MS,
   });
 
   const { data: actual } = useQuery({
     queryKey: ["actual-results"],
     queryFn: () => fetchActual(),
+    refetchInterval: POLL_MS,
   });
 
   const { data: betPts = 0 } = useQuery({
     queryKey: ["my-bet-pts", userId],
     queryFn: () => fetchBetPts({ data: { userId: userId! } }),
     enabled: !!userId,
+    refetchInterval: POLL_MS,
   });
 
   const totalPoints = (data?.points ?? 0) + betPts;

@@ -34,6 +34,7 @@ function GroupPredict() {
     queryKey: ["actual-results"],
     queryFn: () => fetchActual(),
     enabled: locked,
+    refetchInterval: locked ? 3 * 60 * 1000 : false,
   });
 
   // When locked + actual results exist, show actual standings instead of user picks

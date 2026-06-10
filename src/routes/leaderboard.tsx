@@ -20,8 +20,9 @@ export const Route = createFileRoute("/leaderboard")({
 function Leaderboard() {
   const fetchLb = useServerFn(getLeaderboard);
   const fetchCommunity = useServerFn(getCommunityStats);
-  const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => fetchLb() });
-  const { data: community } = useQuery({ queryKey: ["community-stats"], queryFn: () => fetchCommunity() });
+  const POLL_MS = 3 * 60 * 1000;
+  const { data, isLoading } = useQuery({ queryKey: ["leaderboard"], queryFn: () => fetchLb(), refetchInterval: POLL_MS });
+  const { data: community } = useQuery({ queryKey: ["community-stats"], queryFn: () => fetchCommunity(), refetchInterval: POLL_MS });
   const childMatches = useChildMatches();
 
   if (childMatches.length > 0) return <Outlet />;

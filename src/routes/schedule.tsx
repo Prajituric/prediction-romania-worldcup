@@ -79,10 +79,13 @@ function SchedulePage() {
     refetchInterval: 60_000,
   });
 
+  const POLL_MS = 60_000;
+
   const { data: betsData = [] } = useQuery({
     queryKey: ["user-bets", userId],
     queryFn: () => fetchUserBets({ data: { userId: userId! } }),
     enabled: !!userId,
+    refetchInterval: POLL_MS,
   });
 
   const betsMap = useMemo(() => {

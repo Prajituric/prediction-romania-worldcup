@@ -204,28 +204,35 @@ Deno.serve(async (_req) => {
       return json({ ok: false, reason: "rate_limited" }, 429);
     }
 
+    // ── 2. Fetch all matches first (needed to detect played groups) ──────────
+    const { data: matchesData } = await apiFetch(
+      "/competitions/WC/matches?season=2026",
+    );
+
+    // Which groups have at least one FINISHED match?
+    const groupsWithResults = new Set<string>();
+    for (const match of matchesData.matches ?? []) {
+      if (match.stage !== "GROUP_STAGE") continue;
+      if (match.status !== "FINISHED") continue;
+      const grp = (match.group as string)?.replace("GROUP_", "");
+      if (grp) groupsWithResults.add(grp);
+    }
+
     const groupRankings: Record<string, string[]> = {};
 
     for (const standing of standingsData.standings ?? []) {
       // API group: "GROUP_A", "GROUP_B", etc.
       const letter = (standing.group as string)?.replace("GROUP_", "");
       if (!GROUP_LETTERS.includes(letter)) continue;
+      // Only use standings if this group has played at least one match
+      if (!groupsWithResults.has(letter)) continue;
       const sorted = [...standing.table]
         .sort((a: any, b: any) => a.position - b.position)
         .slice(0, 4)
         .map((row: any) => normalize(row.team.name));
       if (sorted.length === 4) groupRankings[letter] = sorted;
     }
-
-    // Fill in any groups not yet in standings with the original group order
-    for (const g of GROUP_LETTERS) {
-      if (!groupRankings[g]) groupRankings[g] = [...GROUPS[g]];
-    }
-
-    // ── 2. Fetch all knockout matches ─────────────────────────────────────
-    const { data: matchesData } = await apiFetch(
-      "/competitions/WC/matches?season=2026",
-    );
+    // Note: groups with no played matches are intentionally excluded — no fake standings
 
     // Build bracket from current standings so we can map team pairs → match IDs
     const bracketMatches = buildBracket(groupRankings, {});

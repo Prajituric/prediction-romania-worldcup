@@ -11,11 +11,23 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as MyPicksRouteImport } from './routes/my-picks'
 import { Route as PredictGroupRouteImport } from './routes/predict.group'
 import { Route as PredictBracketRouteImport } from './routes/predict.bracket'
 import { Route as LeaderboardUserIdRouteImport } from './routes/leaderboard.$userId'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
 
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyPicksRoute = MyPicksRouteImport.update({
+  id: '/my-picks',
+  path: '/my-picks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeaderboardRoute = LeaderboardRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
@@ -54,6 +66,8 @@ export interface FileRoutesByFullPath {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/schedule': typeof ScheduleRoute
+  '/my-picks': typeof MyPicksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +76,8 @@ export interface FileRoutesByTo {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/schedule': typeof ScheduleRoute
+  '/my-picks': typeof MyPicksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +87,8 @@ export interface FileRoutesById {
   '/leaderboard/$userId': typeof LeaderboardUserIdRoute
   '/predict/bracket': typeof PredictBracketRoute
   '/predict/group': typeof PredictGroupRoute
+  '/schedule': typeof ScheduleRoute
+  '/my-picks': typeof MyPicksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +99,8 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/schedule'
+    | '/my-picks'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +109,8 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/schedule'
+    | '/my-picks'
   id:
     | '__root__'
     | '/'
@@ -97,6 +119,8 @@ export interface FileRouteTypes {
     | '/leaderboard/$userId'
     | '/predict/bracket'
     | '/predict/group'
+    | '/schedule'
+    | '/my-picks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -105,6 +129,8 @@ export interface RootRouteChildren {
   AdminResultsRoute: typeof AdminResultsRoute
   PredictBracketRoute: typeof PredictBracketRoute
   PredictGroupRoute: typeof PredictGroupRoute
+  ScheduleRoute: typeof ScheduleRoute
+  MyPicksRoute: typeof MyPicksRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -151,6 +177,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminResultsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-picks': {
+      id: '/my-picks'
+      path: '/my-picks'
+      fullPath: '/my-picks'
+      preLoaderRoute: typeof MyPicksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -172,6 +212,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminResultsRoute: AdminResultsRoute,
   PredictBracketRoute: PredictBracketRoute,
   PredictGroupRoute: PredictGroupRoute,
+  ScheduleRoute: ScheduleRoute,
+  MyPicksRoute: MyPicksRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -257,36 +257,38 @@ Deno.serve(async (_req) => {
       }
     }
 
-    // Build bracket from current standings so we can map team pairs → match IDs
-    const bracketMatches = buildBracket(groupRankings, {}, teamActualPts);
-    const matchIdByTeams: Record<string, string> = {};
-    for (const m of bracketMatches) {
-      if (m.team1 && m.team2) {
-        matchIdByTeams[`${m.team1}|${m.team2}`] = m.id;
-        matchIdByTeams[`${m.team2}|${m.team1}`] = m.id;
-      }
-    }
-
     const KO_STAGES = new Set([
       "LAST_32", "LAST_16", "QUARTER_FINALS", "SEMI_FINALS", "FINAL",
     ]);
 
+    // Build matchIdByTeams + knockoutResults iteratively.
+    // Each pass uses known results as bracket picks so that later-round team
+    // pairings (R16, QF, SF, Final) are resolved correctly.
+    // Without this, only R32 matchups would ever be matched — R16+ results
+    // would silently be skipped and no KO points past R32 would be awarded.
     const knockoutResults: Record<string, string> = {};
+    const matchIdByTeams: Record<string, string> = {};
 
-    for (const match of matchesData.matches ?? []) {
-      if (!KO_STAGES.has(match.stage)) continue;
-      if (match.status !== "FINISHED") continue;
-      if (!match.score?.winner) continue;
-
-      const home = normalize(match.homeTeam.name);
-      const away = normalize(match.awayTeam.name);
-      const winner = match.score.winner === "HOME_TEAM" ? home : away;
-
-      const matchId =
-        matchIdByTeams[`${home}|${away}`] ??
-        matchIdByTeams[`${away}|${home}`];
-
-      if (matchId) knockoutResults[matchId] = winner;
+    for (let pass = 0; pass < 5; pass++) {
+      // Rebuild bracket each pass using latest known KO results as picks
+      const bracketMatches = buildBracket(groupRankings, knockoutResults, teamActualPts);
+      for (const m of bracketMatches) {
+        if (m.team1 && m.team2) {
+          matchIdByTeams[`${m.team1}|${m.team2}`] = m.id;
+          matchIdByTeams[`${m.team2}|${m.team1}`] = m.id;
+        }
+      }
+      // Process all finished KO matches — new matchIds unlock each pass
+      for (const match of matchesData.matches ?? []) {
+        if (!KO_STAGES.has(match.stage)) continue;
+        if (match.status !== "FINISHED") continue;
+        if (!match.score?.winner) continue;
+        const home = normalize(match.homeTeam.name);
+        const away = normalize(match.awayTeam.name);
+        const winner = match.score.winner === "HOME_TEAM" ? home : away;
+        const matchId = matchIdByTeams[`${home}|${away}`] ?? matchIdByTeams[`${away}|${home}`];
+        if (matchId) knockoutResults[matchId] = winner;
+      }
     }
 
     // ── 3. Upsert actual_results ──────────────────────────────────────────

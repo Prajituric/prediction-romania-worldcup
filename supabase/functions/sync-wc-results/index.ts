@@ -200,6 +200,12 @@ async function apiFetch(path: string): Promise<{ data: any; remaining: number }>
 // ── Main handler ───────────────────────────────────────────────────────────
 Deno.serve(async (_req) => {
   try {
+    // Don't process anything before the tournament starts (June 11 2026)
+    const tournamentStart = new Date("2026-06-11T00:00:00Z");
+    if (new Date() < tournamentStart) {
+      return json({ ok: true, reason: "tournament_not_started", skipped: true });
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
     // ── 1. Fetch group standings ──────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ALL_KO_IDS, FINAL_ID, GROUPS, GROUP_LETTERS, type GroupRankings, type KnockoutPicks } from "./groupsData";
-import { buildFullBracket } from "./bracketResolver";
 
 // --- Scoring constants ---
 // Group stage: 3 pts for 1st correct, 2 for 2nd, 1 for 3rd, 0 for 4th
@@ -62,6 +61,20 @@ function calculatePoints(
     championBonus,
     total: groupPoints + knockoutPoints + perfectBonus + championBonus,
   };
+}
+
+/** Returns true only for predictions that are fully complete (all 12 groups, 8 thirds, 31 KO picks). */
+function isCompletePrediction(r: any): boolean {
+  const groups = r.group_rankings as Record<string, string[]> | null;
+  if (!groups || Object.keys(groups).length < 12) return false;
+  if (!Object.values(groups).every((g: any) => Array.isArray(g) && g.length === 4)) return false;
+  const picks = r.knockout_picks as Record<string, string> | null;
+  if (!picks) return false;
+  try {
+    const thirds = JSON.parse(picks["__thirds__"] ?? "null");
+    if (!Array.isArray(thirds) || thirds.length !== 8) return false;
+  } catch { return false; }
+  return ALL_KO_IDS.every((id) => !!picks[id]);
 }
 
 function validateGroupRankings(gr: any): gr is GroupRankings {
@@ -135,11 +148,22 @@ export const savePredictions = createServerFn({ method: "POST" })
   });
 
 export const getLeaderboard = createServerFn({ method: "GET" }).handler(async () => {
-  const [{ data: predictions, error }, { data: betRows }] = await Promise.all([
+  const [{ data: predictions, error }, { data: betRows }, { data: actualRow }] = await Promise.all([
     supabaseAdmin.from("predictions").select("points, user_id, users(name), group_rankings, knockout_picks"),
     supabaseAdmin.from("bets").select("user_id, points").eq("resolved", true),
+    supabaseAdmin.from("actual_results").select("group_rankings_actual").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (error) throw new Error(error.message);
+
+  // Points are driven exclusively by the sync-wc-results Edge Function which
+  // only runs once the tournament has started (2026-06-11). Guard against any
+  // stale test data in the DB by also requiring the tournament to have begun.
+  const TOURNAMENT_START = new Date("2026-06-11T00:00:00Z");
+  const tournamentStarted = new Date() >= TOURNAMENT_START;
+  const hasActualResults =
+    tournamentStarted &&
+    !!actualRow?.group_rankings_actual &&
+    Object.keys(actualRow.group_rankings_actual as object).length > 0;
 
   // Sum resolved bet points per user
   const betPts: Record<number, number> = {};
@@ -148,30 +172,17 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
   }
 
   return (predictions ?? [])
-    .filter((r: any) => {
-      // Only show users with fully complete predictions: all 12 groups + 8 thirds + all 31 knockout picks
-      const groups = r.group_rankings as Record<string, string[]> | null;
-      if (!groups || Object.keys(groups).length < 12) return false;
-      const allGroupsFull = Object.values(groups).every((g: string[]) => g.length === 4);
-      if (!allGroupsFull) return false;
-      const picks = r.knockout_picks as Record<string, string> | null;
-      if (!picks) return false;
-      try {
-        const thirds = JSON.parse(picks["__thirds__"] ?? "null");
-        if (!Array.isArray(thirds) || thirds.length !== 8) return false;
-      } catch { return false; }
-      // Require all 31 knockout match winners to be picked
-      const allKoPicked = ALL_KO_IDS.every((id) => !!picks[id]);
-      if (!allKoPicked) return false;
-      return true;
+    .filter((r: any) => isCompletePrediction(r))
+    .map((r: any) => {
+      const predPts = hasActualResults ? (r.points ?? 0) : 0;
+      return {
+        userId: r.user_id as number,
+        name: r.users?.name ?? "Unknown",
+        predictionPoints: predPts,
+        betPoints: betPts[r.user_id] ?? 0,
+        points: predPts + (betPts[r.user_id] ?? 0),
+      };
     })
-    .map((r: any) => ({
-      userId: r.user_id as number,
-      name: r.users?.name ?? "Unknown",
-      predictionPoints: r.points ?? 0,
-      betPoints: betPts[r.user_id] ?? 0,
-      points: (r.points ?? 0) + (betPts[r.user_id] ?? 0),
-    }))
     .sort((a, b) => b.points - a.points);
 });
 
@@ -205,37 +216,8 @@ export const getActualResults = createServerFn({ method: "GET" }).handler(async 
     : null;
 });
 
-export const adminSetActualResults = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; groupActual: GroupRankings; knockoutActual: KnockoutPicks }) => {
-    const expected = process.env.VITE_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
-    if (!expected || d.password !== expected) throw new Error("Invalid admin password.");
-    if (!validateGroupRankings(d.groupActual)) throw new Error("Invalid actual group rankings.");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    // Upsert single-row results (keep one row)
-    await supabaseAdmin.from("actual_results").delete().neq("id", -1);
-    const ins = await supabaseAdmin.from("actual_results").insert({
-      group_rankings_actual: data.groupActual,
-      knockout_results_actual: data.knockoutActual,
-    });
-    if (ins.error) throw new Error(ins.error.message);
-
-    // Recalculate all users' points with new scoring system
-    const all = await supabaseAdmin.from("predictions").select("id, group_rankings, knockout_picks");
-    if (all.data) {
-      for (const row of all.data as any[]) {
-        const breakdown = calculatePoints(
-          row.group_rankings as GroupRankings,
-          row.knockout_picks as KnockoutPicks,
-          data.groupActual,
-          data.knockoutActual,
-        );
-        await supabaseAdmin.from("predictions").update({ points: breakdown.total }).eq("id", row.id);
-      }
-    }
-    return { ok: true };
-  });
+// adminSetActualResults removed — actual results are driven exclusively by the
+// sync-wc-results Supabase Edge Function (fetches from football-data.org API).
 
 export const getCommunityStats = createServerFn({ method: "GET" }).handler(async () => {
   const { data } = await supabaseAdmin
@@ -244,35 +226,35 @@ export const getCommunityStats = createServerFn({ method: "GET" }).handler(async
 
   if (!data || data.length === 0) return { groupWinners: {}, champions: [] };
 
+  // Only count fully complete predictions (same rule as leaderboard)
+  const complete = (data as any[]).filter(isCompletePrediction);
+  const total = complete.length;
+  if (total === 0) return { groupWinners: {}, champions: [] };
+
   // Most voted group winner per group
   const groupWinners: Record<string, { team: string; votes: number; total: number }> = {};
   for (const g of GROUP_LETTERS) {
     const tally: Record<string, number> = {};
-    for (const row of data as any[]) {
+    for (const row of complete) {
       const team = (row.group_rankings as Record<string, string[]>)?.[g]?.[0];
       if (team) tally[team] = (tally[team] ?? 0) + 1;
     }
     const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
-    if (top) groupWinners[g] = { team: top[0], votes: top[1], total: data.length };
+    if (top) groupWinners[g] = { team: top[0], votes: top[1], total };
   }
 
   // Most voted champion (Final winner pick)
   const champTally: Record<string, number> = {};
-  for (const row of data as any[]) {
+  for (const row of complete) {
     const champ = (row.knockout_picks as Record<string, string>)?.[FINAL_ID];
     if (champ) champTally[champ] = (champTally[champ] ?? 0) + 1;
   }
   const champions = Object.entries(champTally)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([team, votes]) => ({ team, votes, total: data.length }));
+    .map(([team, votes]) => ({ team, votes, total }));
 
   return { groupWinners, champions };
 });
 
-// Resolve the full bracket from rankings + picks, used to drive admin's KO dropdowns from the actual group standings.
-export const resolveBracketFromActual = createServerFn({ method: "POST" })
-  .inputValidator((d: { groupRankings: GroupRankings; picks: KnockoutPicks }) => d)
-  .handler(async ({ data }) => {
-    return buildFullBracket(data.groupRankings, data.picks);
-  });
+// resolveBracketFromActual removed — only used by admin.results.tsx (which no longer exists in the nav).

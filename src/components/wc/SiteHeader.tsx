@@ -25,7 +25,6 @@ export function SiteHeader() {
           <Link to="/predict/bracket" className="hover:text-primary">Bracket</Link>
           {showMyPicks && <Link to="/my-picks" className="hover:text-primary font-medium text-primary">My Picks</Link>}
           <Link to="/leaderboard" className="hover:text-primary">Ranking</Link>
-          <Link to="/admin/results" className="hover:text-primary text-muted-foreground hidden sm:inline">Admin</Link>
         </nav>
       </div>
     </header>

@@ -97,6 +97,22 @@ function ThirdsPredict() {
     }
   }, [dbPrediction]);
 
+  // Whenever thirdsFromGroups changes (e.g. user re-ranked groups), purge any
+  // selected teams that are no longer the 3rd-place team in any group, so the
+  // counter stays accurate and stale picks don't silently count toward 8/8.
+  useEffect(() => {
+    if (locked) return;
+    const validTeams = new Set(Object.values(thirdsFromGroups));
+    if (validTeams.size === 0) return;
+    setSelected(prev => {
+      const filtered = new Set([...prev].filter(t => validTeams.has(t)));
+      if (filtered.size !== prev.size) {
+        saveThirds([...filtered]);
+      }
+      return filtered;
+    });
+  }, [thirdsFromGroups, locked]);
+
   // Always show user's own predicted thirds (so checkmarks work correctly).
   // Actual 3rd-place teams are shown as a comparison indicator per row.
   const displayThirds = thirdsFromGroups;

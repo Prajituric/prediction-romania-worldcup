@@ -79,6 +79,21 @@ export type Database = {
           },
         ]
       }
+      notified_matches: {
+        Row: {
+          match_id: number
+          sent_at: string
+        }
+        Insert: {
+          match_id: number
+          sent_at?: string
+        }
+        Update: {
+          match_id?: number
+          sent_at?: string
+        }
+        Relationships: []
+      }
       predictions: {
         Row: {
           created_at: string
@@ -109,6 +124,41 @@ export type Database = {
             foreignKeyName: "predictions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: number
+          p256dh: string
+          user_id: number
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: never
+          p256dh: string
+          user_id: number
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: never
+          p256dh?: string
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, differenceInHours } from "date-fns";
 import { SiteHeader } from "@/components/wc/SiteHeader";
+import { PushBell } from "@/components/wc/PushBell";
 import { getSchedule, type WCMatch } from "@/lib/wc/schedule.functions";
 import { getFlag } from "@/lib/wc/flags";
 import { getCaptain } from "@/lib/wc/captains";
@@ -87,6 +88,9 @@ function SchedulePage() {
           <h1 className="text-3xl font-bold tracking-tight uppercase mb-1">Schedule</h1>
           <p className="text-muted-foreground text-sm">All World Cup 2026 matches</p>
         </div>
+
+        <PushBell variant="banner" />
+
 
         {/* Filter tabs */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto no-scrollbar">

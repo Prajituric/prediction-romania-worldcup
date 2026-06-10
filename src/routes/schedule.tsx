@@ -358,6 +358,13 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
               <span className="text-sm font-extrabold tabular-nums text-primary">
                 {savedBet.homeScore}–{savedBet.awayScore}
               </span>
+              {canBet ? (
+                <span className="text-[9px] text-primary/50 font-medium">tap to edit</span>
+              ) : (
+                <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground/60">
+                  <Lock className="h-2.5 w-2.5" /> locked
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-0.5">

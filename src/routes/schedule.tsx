@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, differenceInHours } from "date-fns";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { getSchedule, type WCMatch } from "@/lib/wc/schedule.functions";
@@ -98,19 +98,15 @@ function SchedulePage() {
   const refreshBets = () => queryClient.invalidateQueries({ queryKey: ["user-bets", userId] });
 
   // Persist the last real score the API returned for each match.
-  // Lives in the parent so it survives filter-tab switches that unmount/remount cards.
-  const [scoreCache, setScoreCache] = useState<Record<number, { home: number; away: number }>>({});
-  useEffect(() => {
-    matches.forEach((m) => {
-      if (m.homeScore != null && m.awayScore != null) {
-        setScoreCache((prev) =>
-          prev[m.id]?.home === m.homeScore && prev[m.id]?.away === m.awayScore
-            ? prev
-            : { ...prev, [m.id]: { home: m.homeScore!, away: m.awayScore! } },
-        );
-      }
-    });
-  }, [matches]);
+  // useRef so updates are synchronous (no async state gap) and survive
+  // filter-tab switches that would unmount/remount individual cards.
+  const scoreCacheRef = useRef<Record<number, { home: number; away: number }>>({});
+  for (const m of matches) {
+    if (m.homeScore != null && m.awayScore != null) {
+      scoreCacheRef.current[m.id] = { home: m.homeScore, away: m.awayScore };
+    }
+  }
+  const scoreCache = scoreCacheRef.current;
 
   // A match is considered live if the API says so, OR if kickoff was 0–130 minutes
   // ago and the match hasn't finished yet (guards against free-tier API status lag).

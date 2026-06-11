@@ -266,7 +266,7 @@ export const getCommunityStats = createServerFn({ method: "GET" }).handler(async
   }
   const champions = Object.entries(champTally)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
+    .slice(0, 5)
     .map(([team, votes]) => ({ team, votes, total }));
 
   return { groupWinners, champions };

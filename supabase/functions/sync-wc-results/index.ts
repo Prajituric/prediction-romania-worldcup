@@ -206,35 +206,25 @@ Deno.serve(async (_req) => {
       return json({ ok: false, reason: "rate_limited" }, 429);
     }
 
-    // ── 2. Fetch all matches first (needed to detect played groups) ──────────
+    // ── 2. Fetch all matches (needed for KO stage resolution) ────────────────
     const { data: matchesData } = await apiFetch(
       "/competitions/WC/matches?season=2026",
     );
 
-    // Which groups have at least one FINISHED match?
-    const groupsWithResults = new Set<string>();
-    for (const match of matchesData.matches ?? []) {
-      if (match.stage !== "GROUP_STAGE") continue;
-      if (match.status !== "FINISHED") continue;
-      const grp = (match.group as string)?.replace("GROUP_", "");
-      if (grp) groupsWithResults.add(grp);
-    }
-
+    // Always use the API's current standings for all 12 groups.
+    // The API updates standings dynamically as matches are played,
+    // so this naturally reflects live results without any hardcoding.
     const groupRankings: Record<string, string[]> = {};
 
     for (const standing of standingsData.standings ?? []) {
-      // API group: "GROUP_A", "GROUP_B", etc.
       const letter = (standing.group as string)?.replace("GROUP_", "");
       if (!GROUP_LETTERS.includes(letter)) continue;
-      // Only use standings if this group has played at least one match
-      if (!groupsWithResults.has(letter)) continue;
       const sorted = [...standing.table]
         .sort((a: any, b: any) => a.position - b.position)
         .slice(0, 4)
         .map((row: any) => normalize(row.team.name));
       if (sorted.length === 4) groupRankings[letter] = sorted;
     }
-    // Note: groups with no played matches are intentionally excluded — no fake standings
 
     // Build actual group-stage pts map so third-place team selection is based on
     // real performance (not an alphabetical fallback).

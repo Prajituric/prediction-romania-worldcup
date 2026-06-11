@@ -14,7 +14,7 @@ export function SiteHeader() {
   useEffect(() => {
     const user = getUser();
     setShowMyPicks(!!user);
-    if (user && isSubmitted()) {
+    if (user) {
       const last = parseInt(localStorage.getItem(BET_REMINDER_KEY) ?? "0");
       if (Date.now() - last > BET_REMINDER_COOLDOWN_MS) {
         setTimeout(() => setStep("reminder"), 1500);

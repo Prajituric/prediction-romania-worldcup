@@ -219,8 +219,14 @@ interface MatchCardProps {
 }
 
 function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
-  const isLive = match.status === "IN_PLAY" || match.status === "PAUSED";
   const isFinished = match.status === "FINISHED";
+  // Use time-based detection so the live indicator doesn't flicker when the
+  // free-tier API temporarily returns SCHEDULED during an in-progress match.
+  const minsElapsedSinceKickoff = differenceInMinutes(new Date(), parseISO(match.utcDate));
+  const isLive =
+    match.status === "IN_PLAY" ||
+    match.status === "PAUSED" ||
+    (!isFinished && minsElapsedSinceKickoff >= 0 && minsElapsedSinceKickoff <= 130);
   const isUpcoming = !isLive && !isFinished;
   // Lock bets 60 minutes before kickoff (or if match started/finished/already resolved)
   const minsUntilKickoff = differenceInMinutes(parseISO(match.utcDate), new Date());

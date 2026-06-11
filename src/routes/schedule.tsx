@@ -242,20 +242,14 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
   const homeWon = match.winner === "HOME_TEAM";
   const awayWon = match.winner === "AWAY_TEAM";
 
+  // API has confirmed the match is actually in progress (has real score data)
+  const isLiveByApi = match.status === "IN_PLAY" || match.status === "PAUSED";
+
   const [betOpen, setBetOpen] = useState(false);
   const [homeInput, setHomeInput] = useState(savedBet?.homeScore ?? 0);
   const [awayInput, setAwayInput] = useState(savedBet?.awayScore ?? 0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Cache last known API score so it persists when the free-tier API
-  // temporarily returns null scores alongside a stale SCHEDULED status.
-  const [cachedHomeScore, setCachedHomeScore] = useState<number>(match.homeScore ?? 0);
-  const [cachedAwayScore, setCachedAwayScore] = useState<number>(match.awayScore ?? 0);
-  useEffect(() => {
-    if (match.homeScore != null) setCachedHomeScore(match.homeScore);
-    if (match.awayScore != null) setCachedAwayScore(match.awayScore);
-  }, [match.homeScore, match.awayScore]);
 
   // Sync inputs when savedBet loads/changes
   useEffect(() => {
@@ -363,15 +357,15 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
 
         {/* Score / VS / Bet display */}
         <div className="shrink-0 text-center w-20">
-          {isFinished || isLive ? (
+          {isFinished || isLiveByApi ? (
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center justify-center gap-1">
                 <span className={["text-xl font-extrabold tabular-nums", homeWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {cachedHomeScore}
+                  {match.homeScore ?? 0}
                 </span>
                 <span className="text-muted-foreground text-sm">–</span>
                 <span className={["text-xl font-extrabold tabular-nums", awayWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {cachedAwayScore}
+                  {match.awayScore ?? 0}
                 </span>
               </div>
               {savedBet && (

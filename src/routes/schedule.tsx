@@ -97,6 +97,21 @@ function SchedulePage() {
 
   const refreshBets = () => queryClient.invalidateQueries({ queryKey: ["user-bets", userId] });
 
+  // Persist the last real score the API returned for each match.
+  // Lives in the parent so it survives filter-tab switches that unmount/remount cards.
+  const [scoreCache, setScoreCache] = useState<Record<number, { home: number; away: number }>>({});
+  useEffect(() => {
+    matches.forEach((m) => {
+      if (m.homeScore != null && m.awayScore != null) {
+        setScoreCache((prev) =>
+          prev[m.id]?.home === m.homeScore && prev[m.id]?.away === m.awayScore
+            ? prev
+            : { ...prev, [m.id]: { home: m.homeScore!, away: m.awayScore! } },
+        );
+      }
+    });
+  }, [matches]);
+
   // A match is considered live if the API says so, OR if kickoff was 0–130 minutes
   // ago and the match hasn't finished yet (guards against free-tier API status lag).
   const isMatchLive = (m: WCMatch) => {
@@ -200,6 +215,7 @@ function SchedulePage() {
                     userId={userId}
                     savedBet={betsMap[m.id] ?? null}
                     onBetSaved={refreshBets}
+                    cachedScore={scoreCache[m.id] ?? null}
                   />
                 ))}
               </div>
@@ -216,9 +232,10 @@ interface MatchCardProps {
   userId: number | null;
   savedBet: BetInfo | null;
   onBetSaved: () => void;
+  cachedScore: { home: number; away: number } | null;
 }
 
-function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
+function MatchCard({ match, userId, savedBet, onBetSaved, cachedScore }: MatchCardProps) {
   const isFinished = match.status === "FINISHED";
   // Use time-based detection so the live indicator doesn't flicker when the
   // free-tier API temporarily returns SCHEDULED during an in-progress match.
@@ -242,8 +259,12 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
   const homeWon = match.winner === "HOME_TEAM";
   const awayWon = match.winner === "AWAY_TEAM";
 
-  // API has confirmed the match is actually in progress (has real score data)
-  const isLiveByApi = match.status === "IN_PLAY" || match.status === "PAUSED";
+  // Use the parent-level score cache so the last real API score persists
+  // even when the API lags back to SCHEDULED with null scores, and even
+  // if this card unmounts/remounts due to filter-tab switches.
+  const displayHome = cachedScore?.home ?? match.homeScore ?? null;
+  const displayAway = cachedScore?.away ?? match.awayScore ?? null;
+  const hasScore = displayHome != null;
 
   const [betOpen, setBetOpen] = useState(false);
   const [homeInput, setHomeInput] = useState(savedBet?.homeScore ?? 0);
@@ -357,15 +378,15 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
 
         {/* Score / VS / Bet display */}
         <div className="shrink-0 text-center w-20">
-          {isFinished || isLiveByApi ? (
+          {(isFinished || isLive) && hasScore ? (
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center justify-center gap-1">
                 <span className={["text-xl font-extrabold tabular-nums", homeWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {match.homeScore ?? 0}
+                  {displayHome}
                 </span>
                 <span className="text-muted-foreground text-sm">–</span>
                 <span className={["text-xl font-extrabold tabular-nums", awayWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {match.awayScore ?? 0}
+                  {displayAway}
                 </span>
               </div>
               {savedBet && (

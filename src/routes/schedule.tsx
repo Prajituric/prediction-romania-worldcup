@@ -77,6 +77,7 @@ function SchedulePage() {
     queryKey: ["schedule"],
     queryFn: () => fetchSchedule(),
     refetchInterval: 60_000,
+    placeholderData: (prev) => prev, // keep previous data visible while refetching (no flash)
   });
 
   const POLL_MS = 60_000;
@@ -96,16 +97,25 @@ function SchedulePage() {
 
   const refreshBets = () => queryClient.invalidateQueries({ queryKey: ["user-bets", userId] });
 
+  // A match is considered live if the API says so, OR if kickoff was 0–130 minutes
+  // ago and the match hasn't finished yet (guards against free-tier API status lag).
+  const isMatchLive = (m: WCMatch) => {
+    if (m.status === "IN_PLAY" || m.status === "PAUSED") return true;
+    if (m.status === "FINISHED") return false;
+    const minsElapsed = differenceInMinutes(new Date(), parseISO(m.utcDate));
+    return minsElapsed >= 0 && minsElapsed <= 130;
+  };
+
   const filtered = useMemo(() => {
-    if (filter === "live") return matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED");
-    if (filter === "upcoming") return matches.filter((m) => m.status === "SCHEDULED" || m.status === "TIMED");
+    if (filter === "live") return matches.filter(isMatchLive);
+    if (filter === "upcoming") return matches.filter((m) => !isMatchLive(m) && m.status !== "FINISHED");
     if (filter === "finished") return matches.filter((m) => m.status === "FINISHED");
     return matches;
   }, [matches, filter]);
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered]);
   const liveCount = useMemo(
-    () => matches.filter((m) => m.status === "IN_PLAY" || m.status === "PAUSED").length,
+    () => matches.filter(isMatchLive).length,
     [matches],
   );
 

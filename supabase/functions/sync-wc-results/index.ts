@@ -73,30 +73,29 @@ function calcPoints(
 }
 
 // ── Bracket resolution (mirrored from bracketResolver.ts) ─────────────────
+// Official FIFA 2026 Round-of-32 pairings — kept in sync with bracketResolver.ts
 const R32_SPEC = [
-  { id: "R32_1",  s1: { k: "winner", g: "A" },  s2: { k: "third",  gs: ["C","D","E"] } },
-  { id: "R32_2",  s1: { k: "winner", g: "B" },  s2: { k: "runner", g: "F" } },
-  { id: "R32_3",  s1: { k: "winner", g: "C" },  s2: { k: "third",  gs: ["A","B","F"] } },
-  { id: "R32_4",  s1: { k: "winner", g: "D" },  s2: { k: "runner", g: "E" } },
-  { id: "R32_5",  s1: { k: "winner", g: "E" },  s2: { k: "third",  gs: ["D","E","F"] } },
-  { id: "R32_6",  s1: { k: "winner", g: "F" },  s2: { k: "runner", g: "D" } },
-  { id: "R32_7",  s1: { k: "winner", g: "G" },  s2: { k: "third",  gs: ["G","H","I"] } },
-  { id: "R32_8",  s1: { k: "winner", g: "H" },  s2: { k: "runner", g: "I" } },
-  { id: "R32_9",  s1: { k: "winner", g: "I" },  s2: { k: "third",  gs: ["H","I","J"] } },
-  { id: "R32_10", s1: { k: "winner", g: "J" },  s2: { k: "runner", g: "K" } },
-  { id: "R32_11", s1: { k: "winner", g: "K" },  s2: { k: "third",  gs: ["J","K","L"] } },
-  { id: "R32_12", s1: { k: "winner", g: "L" },  s2: { k: "runner", g: "G" } },
-  { id: "R32_13", s1: { k: "runner", g: "A" },  s2: { k: "runner", g: "B" } },
-  { id: "R32_14", s1: { k: "runner", g: "C" },  s2: { k: "runner", g: "H" } },
-  { id: "R32_15", s1: { k: "runner", g: "J" },  s2: { k: "runner", g: "L" } },
-  { id: "R32_16", s1: { k: "bestThird" },        s2: { k: "remainingRunner" } },
+  { id: "R32_1",  s1: { k: "runner", g: "A" },  s2: { k: "runner",  g: "B" } },
+  { id: "R32_2",  s1: { k: "winner", g: "F" },  s2: { k: "runner",  g: "C" } },
+  { id: "R32_3",  s1: { k: "winner", g: "C" },  s2: { k: "runner",  g: "F" } },
+  { id: "R32_4",  s1: { k: "winner", g: "E" },  s2: { k: "third",   gs: ["A","B","C","D","F"] } },
+  { id: "R32_5",  s1: { k: "runner", g: "E" },  s2: { k: "runner",  g: "I" } },
+  { id: "R32_6",  s1: { k: "winner", g: "A" },  s2: { k: "third",   gs: ["C","E","F","H","I"] } },
+  { id: "R32_7",  s1: { k: "runner", g: "D" },  s2: { k: "runner",  g: "G" } },
+  { id: "R32_8",  s1: { k: "winner", g: "D" },  s2: { k: "third",   gs: ["B","E","F","I","J"] } },
+  { id: "R32_9",  s1: { k: "winner", g: "I" },  s2: { k: "third",   gs: ["C","D","F","G","H"] } },
+  { id: "R32_10", s1: { k: "winner", g: "K" },  s2: { k: "third",   gs: ["D","E","I","J","L"] } },
+  { id: "R32_11", s1: { k: "runner", g: "K" },  s2: { k: "runner",  g: "L" } },
+  { id: "R32_12", s1: { k: "winner", g: "G" },  s2: { k: "third",   gs: ["A","E","H","I","J"] } },
+  { id: "R32_13", s1: { k: "winner", g: "B" },  s2: { k: "third",   gs: ["E","F","G","I","J"] } },
+  { id: "R32_14", s1: { k: "winner", g: "H" },  s2: { k: "runner",  g: "J" } },
+  { id: "R32_15", s1: { k: "winner", g: "J" },  s2: { k: "runner",  g: "H" } },
+  { id: "R32_16", s1: { k: "winner", g: "L" },  s2: { k: "third",   gs: ["E","H","I","J","K"] } },
 ] as const;
 
 function buildBracket(
   rankings: Record<string, string[]>,
   picks: Record<string, string>,
-  // Actual group-stage points per team (from API standings) — used to rank thirds correctly.
-  // Falls back to position-based estimate only if not provided.
   teamActualPts: Record<string, number> = {},
 ): { id: string; team1: string | null; team2: string | null; winner: string | null }[] {
   const byGroup: Record<string, { winner: string; runner: string; third: string; pts: number }> = {};
@@ -105,77 +104,67 @@ function buildBracket(
   for (const g of GROUP_LETTERS) {
     const order = rankings[g];
     if (!order || order.length !== 4) continue;
-    // Use real group-stage points for the third-place team so qualifying-thirds
-    // selection matches the actual tournament (not alphabetical).
     const thirdTeam = order[2];
     const thirdPts = teamActualPts[thirdTeam] ?? POSITION_POINTS[3];
-    byGroup[g] = {
-      winner: order[0], runner: order[1], third: thirdTeam,
-      pts: thirdPts,
-    };
+    byGroup[g] = { winner: order[0], runner: order[1], third: thirdTeam, pts: thirdPts };
     allThirds.push({ team: thirdTeam, g, pts: thirdPts });
   }
 
   const sortedThirds = [...allThirds].sort((a, b) => b.pts - a.pts || a.team.localeCompare(b.team));
   const qualThirds = sortedThirds.slice(0, 8);
-  const qualThirdGroups = new Set(qualThirds.map((t) => t.g));
-  const thirdByGroup: Record<string, string> = {};
-  for (const t of qualThirds) thirdByGroup[t.g] = t.team;
 
-  const used = new Set<string>();
+  // Bipartite matching — same algorithm as bracketResolver.ts to ensure
+  // third-place slot assignment is correct and never leaves a slot empty.
+  const thirdSlots = R32_SPEC
+    .filter((s) => s.s2.k === "third")
+    .map((s) => ({ matchId: s.id, groups: (s.s2 as { k: "third"; gs: readonly string[] }).gs }));
+
+  const sn = thirdSlots.length;
+  const sm = qualThirds.length;
+  const adj: boolean[][] = thirdSlots.map((s) => qualThirds.map((t) => (s.groups as readonly string[]).includes(t.g)));
+  const matchR: number[] = Array(sm).fill(-1);
+
+  function augment(slotIdx: number, visited: boolean[]): boolean {
+    for (let j = 0; j < sm; j++) {
+      if (adj[slotIdx][j] && !visited[j]) {
+        visited[j] = true;
+        if (matchR[j] === -1 || augment(matchR[j], visited)) { matchR[j] = slotIdx; return true; }
+      }
+    }
+    return false;
+  }
+  for (let i = 0; i < sn; i++) augment(i, Array(sm).fill(false));
+
+  const matchL: number[] = Array(sn).fill(-1);
+  for (let j = 0; j < sm; j++) { if (matchR[j] >= 0) matchL[matchR[j]] = j; }
+
+  const thirdAssignment: Record<string, string | null> = {};
+  for (let i = 0; i < sn; i++) {
+    thirdAssignment[thirdSlots[i].matchId] = matchL[i] >= 0 ? qualThirds[matchL[i]].team : null;
+  }
+
   const r32: { id: string; team1: string | null; team2: string | null; winner: string | null }[] = [];
-
-  const pickThird = (gs: readonly string[]): string | null => {
-    const candidates = gs
-      .filter((g) => qualThirdGroups.has(g) && thirdByGroup[g] && !used.has(thirdByGroup[g]))
-      .map((g) => ({ team: thirdByGroup[g], g }));
-    candidates.sort((a, b) => a.team.localeCompare(b.team));
-    return candidates[0]?.team ?? null;
-  };
-
-  const resolveSlot = (s: any): string | null => {
-    if (s.k === "winner") {
-      const t = byGroup[s.g]?.winner;
-      if (t && !used.has(t)) { used.add(t); return t; } return null;
-    }
-    if (s.k === "runner") {
-      const t = byGroup[s.g]?.runner;
-      if (t && !used.has(t)) { used.add(t); return t; } return null;
-    }
-    if (s.k === "third") {
-      const t = pickThird(s.gs);
-      if (t) { used.add(t); return t; } return null;
-    }
-    if (s.k === "bestThird") {
-      const remaining = qualThirds.filter((t) => !used.has(t.team));
-      remaining.sort((a, b) => b.pts - a.pts || a.team.localeCompare(b.team));
-      const t = remaining[0]?.team ?? null;
-      if (t) used.add(t); return t;
-    }
-    if (s.k === "remainingRunner") {
-      const runners = GROUP_LETTERS.map((g) => byGroup[g]?.runner).filter((t): t is string => !!t && !used.has(t));
-      runners.sort((a, b) => a.localeCompare(b));
-      const t = runners[0] ?? null;
-      if (t) used.add(t); return t;
-    }
-    return null;
-  };
-
   for (const spec of R32_SPEC) {
-    r32.push({ id: spec.id, team1: resolveSlot(spec.s1), team2: resolveSlot(spec.s2), winner: picks[spec.id] ?? null });
+    const getTeam = (s: { k: string; g?: string }): string | null => {
+      if (s.k === "winner") return byGroup[s.g!]?.winner ?? null;
+      if (s.k === "runner") return byGroup[s.g!]?.runner ?? null;
+      if (s.k === "third") return thirdAssignment[spec.id] ?? null;
+      return null;
+    };
+    r32.push({ id: spec.id, team1: getTeam(spec.s1), team2: getTeam(spec.s2), winner: picks[spec.id] ?? null });
   }
 
   const matchById: Record<string, { id: string; team1: string | null; team2: string | null; winner: string | null }> = {};
-  for (const m of r32) matchById[m.id] = m;
+  for (const bm of r32) matchById[bm.id] = bm;
 
   const buildNext = (prevIds: string[], nextIds: string[]) => {
     for (let i = 0; i < nextIds.length; i++) {
       const a = matchById[prevIds[i * 2]];
       const b = matchById[prevIds[i * 2 + 1]];
       const id = nextIds[i];
-      const m = { id, team1: a?.winner ?? null, team2: b?.winner ?? null, winner: picks[id] ?? null };
-      if (m.winner && m.winner !== m.team1 && m.winner !== m.team2) m.winner = null;
-      matchById[id] = m;
+      const bm = { id, team1: a?.winner ?? null, team2: b?.winner ?? null, winner: picks[id] ?? null };
+      if (bm.winner && bm.winner !== bm.team1 && bm.winner !== bm.team2) bm.winner = null;
+      matchById[id] = bm;
     }
   };
 

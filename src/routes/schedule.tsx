@@ -248,6 +248,15 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Cache last known API score so it persists when the free-tier API
+  // temporarily returns null scores alongside a stale SCHEDULED status.
+  const [cachedHomeScore, setCachedHomeScore] = useState<number>(match.homeScore ?? 0);
+  const [cachedAwayScore, setCachedAwayScore] = useState<number>(match.awayScore ?? 0);
+  useEffect(() => {
+    if (match.homeScore != null) setCachedHomeScore(match.homeScore);
+    if (match.awayScore != null) setCachedAwayScore(match.awayScore);
+  }, [match.homeScore, match.awayScore]);
+
   // Sync inputs when savedBet loads/changes
   useEffect(() => {
     if (savedBet) {
@@ -358,11 +367,11 @@ function MatchCard({ match, userId, savedBet, onBetSaved }: MatchCardProps) {
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center justify-center gap-1">
                 <span className={["text-xl font-extrabold tabular-nums", homeWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {match.homeScore ?? 0}
+                  {cachedHomeScore}
                 </span>
                 <span className="text-muted-foreground text-sm">–</span>
                 <span className={["text-xl font-extrabold tabular-nums", awayWon ? "text-primary" : "text-foreground"].join(" ")}>
-                  {match.awayScore ?? 0}
+                  {cachedAwayScore}
                 </span>
               </div>
               {savedBet && (

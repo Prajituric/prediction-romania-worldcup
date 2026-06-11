@@ -1,6 +1,6 @@
 // Lightweight client-side "session" — name-only, no auth
 // Set to true to allow all users to re-edit their picks (revert to false to lock after WC starts)
-export const EDITING_OPEN = true;
+export const EDITING_OPEN = false;
 const USER_KEY = "wc.user";
 const GROUPS_KEY = "wc.groupRankings";
 const PICKS_KEY = "wc.knockoutPicks";

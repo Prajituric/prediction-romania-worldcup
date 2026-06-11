@@ -79,7 +79,8 @@ function ViewUserPredictions() {
     refetchInterval: POLL_MS,
   });
 
-  const totalPoints = (data?.points ?? 0) + betPts;
+  const tournamentStarted = !!actual;
+  const totalPoints = tournamentStarted ? (data?.points ?? 0) + betPts : 0;
 
   const accuracy = useMemo(() => {
     if (!data) return null;
@@ -211,7 +212,7 @@ function ViewUserPredictions() {
           <span className="text-muted-foreground">/</span>
           <span className="font-semibold">
             Predictions · {totalPoints} pts
-            {betPts > 0 && (
+            {tournamentStarted && betPts > 0 && (
               <span className="ml-1 text-xs text-muted-foreground font-normal">
                 ({data.points} bracket + <span className="text-yellow-400">{betPts} bets</span>)
               </span>

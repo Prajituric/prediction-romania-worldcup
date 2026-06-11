@@ -125,7 +125,10 @@ function MyPicksPage() {
     refetchInterval: POLL_MS,
   });
 
-  const totalPoints = (data?.points ?? 0) + betPts;
+  // Only show points once the tournament has started (getActualResults returns null before then).
+  // Guards against stale test data in the DB showing non-zero points pre-tournament.
+  const tournamentStarted = !!actual;
+  const totalPoints = tournamentStarted ? (data?.points ?? 0) + betPts : 0;
 
   const rankings = data?.groupRankings as Record<string, string[]> | undefined;
   const picks = (data?.knockoutPicks as Record<string, string>) ?? {};
@@ -241,7 +244,7 @@ function MyPicksPage() {
           <h1 className="text-3xl font-bold tracking-tight uppercase mb-1">My Picks</h1>
           <p className="text-muted-foreground text-sm">
             <span className="text-primary font-semibold">{totalPoints} pts</span>
-            {betPts > 0 && (
+            {tournamentStarted && betPts > 0 && (
               <span className="text-muted-foreground"> ({data.points} bracket + <span className="text-yellow-400">{betPts} bets</span>)</span>
             )}
             <span className="text-muted-foreground"> · locked predictions</span>

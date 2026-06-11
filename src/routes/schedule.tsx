@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format, parseISO, isToday, isTomorrow, differenceInMinutes, differenceInHours } from "date-fns";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { getSchedule, type WCMatch } from "@/lib/wc/schedule.functions";
@@ -15,6 +15,10 @@ export const Route = createFileRoute("/schedule")({
   head: () => ({ meta: [{ title: "Schedule — WC 2026" }] }),
   component: SchedulePage,
 });
+
+// Module-level cache — persists across component remounts and filter-tab switches.
+// Only ever written when the API returns a real (non-null) score.
+const SCORE_CACHE: Record<number, { home: number; away: number }> = {};
 
 const STAGE_LABEL: Record<string, string> = {
   GROUP_STAGE: "Group Stage",
@@ -97,16 +101,12 @@ function SchedulePage() {
 
   const refreshBets = () => queryClient.invalidateQueries({ queryKey: ["user-bets", userId] });
 
-  // Persist the last real score the API returned for each match.
-  // useRef so updates are synchronous (no async state gap) and survive
-  // filter-tab switches that would unmount/remount individual cards.
-  const scoreCacheRef = useRef<Record<number, { home: number; away: number }>>({});
+  // Update module-level cache with any real scores from this poll
   for (const m of matches) {
     if (m.homeScore != null && m.awayScore != null) {
-      scoreCacheRef.current[m.id] = { home: m.homeScore, away: m.awayScore };
+      SCORE_CACHE[m.id] = { home: m.homeScore, away: m.awayScore };
     }
   }
-  const scoreCache = scoreCacheRef.current;
 
   // A match is considered live if the API says so, OR if kickoff was 0–130 minutes
   // ago and the match hasn't finished yet (guards against free-tier API status lag).
@@ -211,7 +211,7 @@ function SchedulePage() {
                     userId={userId}
                     savedBet={betsMap[m.id] ?? null}
                     onBetSaved={refreshBets}
-                    cachedScore={scoreCache[m.id] ?? null}
+                    cachedScore={SCORE_CACHE[m.id] ?? null}
                   />
                 ))}
               </div>

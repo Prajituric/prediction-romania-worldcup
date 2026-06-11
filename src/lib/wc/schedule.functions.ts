@@ -28,6 +28,12 @@ export interface WCMatch {
   winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
 }
 
+// Server-side score cache — lives in the server process, shared across ALL
+// users and devices. Once any request returns a real score for a match, every
+// subsequent request (any device) returns that score even during API lag polls.
+// Resets only on server restart, which is fine — next real poll refills it.
+const SERVER_SCORE_CACHE: Record<number, { home: number; away: number }> = {};
+
 export const getSchedule = createServerFn().handler(async (): Promise<WCMatch[]> => {
   const token = process.env.FOOTBALL_API_TOKEN;
   if (!token) return [];
@@ -40,19 +46,35 @@ export const getSchedule = createServerFn().handler(async (): Promise<WCMatch[]>
 
     const data = await res.json();
 
-    return (data.matches ?? []).map((m: any): WCMatch => ({
-      id: m.id,
-      utcDate: m.utcDate,
-      status: m.status,
-      stage: m.stage ?? "",
-      group: m.group ? m.group.replace("GROUP_", "Group ") : null,
-      homeTeam: normalize(m.homeTeam?.name ?? "TBD"),
-      awayTeam: normalize(m.awayTeam?.name ?? "TBD"),
-      homeScore: m.score?.fullTime?.home ?? null,
-      awayScore: m.score?.fullTime?.away ?? null,
-      venue: m.venue ?? null,
-      winner: m.score?.winner ?? null,
-    }));
+    return (data.matches ?? []).map((m: any): WCMatch => {
+      // fullTime is only guaranteed once status=FINISHED; during IN_PLAY the
+      // API may serve it live or leave it null. Fall back to halfTime.
+      const apiHome: number | null = m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? null;
+      const apiAway: number | null = m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? null;
+
+      // Write to server cache whenever the API gives real data
+      if (apiHome != null && apiAway != null) {
+        SERVER_SCORE_CACHE[m.id] = { home: apiHome, away: apiAway };
+      }
+
+      // Fall back to cached score when API returns null (status/score lag)
+      const homeScore = apiHome ?? SERVER_SCORE_CACHE[m.id]?.home ?? null;
+      const awayScore = apiAway ?? SERVER_SCORE_CACHE[m.id]?.away ?? null;
+
+      return {
+        id: m.id,
+        utcDate: m.utcDate,
+        status: m.status,
+        stage: m.stage ?? "",
+        group: m.group ? m.group.replace("GROUP_", "Group ") : null,
+        homeTeam: normalize(m.homeTeam?.name ?? "TBD"),
+        awayTeam: normalize(m.awayTeam?.name ?? "TBD"),
+        homeScore,
+        awayScore,
+        venue: m.venue ?? null,
+        winner: m.score?.winner ?? null,
+      };
+    });
   } catch {
     return [];
   }

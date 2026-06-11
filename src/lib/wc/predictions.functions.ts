@@ -149,9 +149,9 @@ export const savePredictions = createServerFn({ method: "POST" })
 
 export const getLeaderboard = createServerFn({ method: "GET" }).handler(async () => {
   const [{ data: predictions, error }, { data: betRows }, { data: actualRow }] = await Promise.all([
-    supabaseAdmin.from("predictions").select("points, user_id, users(name), group_rankings, knockout_picks"),
+    supabaseAdmin.from("predictions").select("user_id, users(name), group_rankings, knockout_picks"),
     supabaseAdmin.from("bets").select("user_id, points").eq("resolved", true),
-    supabaseAdmin.from("actual_results").select("group_rankings_actual").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("actual_results").select("group_rankings_actual, knockout_results_actual").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (error) throw new Error(error.message);
 
@@ -173,7 +173,18 @@ export const getLeaderboard = createServerFn({ method: "GET" }).handler(async ()
   return (predictions ?? [])
     .filter((r: any) => isCompletePrediction(r))
     .map((r: any) => {
-      const predPts = hasActualResults ? (r.points ?? 0) : 0;
+      let predPts = 0;
+      if (hasActualResults) {
+        // Always recalculate live from actual_results — never use the stale
+        // stored points column (which was 0 when picks were saved pre-tournament).
+        const breakdown = calculatePoints(
+          r.group_rankings as GroupRankings,
+          r.knockout_picks as KnockoutPicks,
+          actualRow!.group_rankings_actual as GroupRankings,
+          (actualRow!.knockout_results_actual ?? {}) as KnockoutPicks,
+        );
+        predPts = breakdown.total;
+      }
       return {
         userId: r.user_id as number,
         name: r.users?.name ?? "Unknown",

@@ -8,7 +8,7 @@ import { getSchedule } from "@/lib/wc/schedule.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { GROUP_LETTERS } from "@/lib/wc/groupsData";
 import { getFlag } from "@/lib/wc/flags";
-import { Trophy, Users, Grid2x2 } from "lucide-react";
+import { Trophy, Users, BarChart2 } from "lucide-react";
 
 export const Route = createFileRoute("/leaderboard")({
   head: () => ({
@@ -174,9 +174,22 @@ function BetResultsGrid() {
     [allMatches],
   );
 
-  if (!gridData || finishedMatches.length === 0) return null;
+  const { users = [], bets = [] } = gridData ?? {};
 
-  const { users, bets } = gridData;
+  const isLoading = !gridData || finishedMatches.length === 0;
+
+  if (isLoading) {
+    return (
+      <section className="mt-10">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+          <BarChart2 className="h-5 w-5 text-primary" /> Score Predictions Grid
+        </h2>
+        <div className="rounded-lg border border-border bg-card p-6 text-center text-muted-foreground text-sm">
+          {!gridData ? "Loading grid…" : "No finished matches yet."}
+        </div>
+      </section>
+    );
+  }
 
   // userId → matchId → bet
   const betMap = new Map<number, Map<number, typeof bets[0]>>();
@@ -188,7 +201,7 @@ function BetResultsGrid() {
   return (
     <section className="mt-10">
       <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
-        <Grid2x2 className="h-5 w-5 text-primary" /> Score Predictions Grid
+        <BarChart2 className="h-5 w-5 text-primary" /> Score Predictions Grid
       </h2>
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">

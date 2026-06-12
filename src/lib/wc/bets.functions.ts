@@ -103,21 +103,25 @@ export interface GridBet {
 }
 
 export const getAllBetsForGrid = createServerFn({ method: "GET" }).handler(async () => {
-  const { data: bets } = await supabaseAdmin
-    .from("bets")
-    .select("user_id, match_id, home_score, away_score, points, resolved, users(name)");
+  const [{ data: rawBets }, { data: rawUsers }] = await Promise.all([
+    supabaseAdmin.from("bets").select("user_id, match_id, home_score, away_score, points, resolved"),
+    supabaseAdmin.from("users").select("id, name"),
+  ]);
 
-  const betsData: GridBet[] = (bets ?? []).map((b: any) => ({
-    userId: b.user_id as number,
-    userName: b.users?.name ?? "Unknown",
-    matchId: b.match_id as number,
-    homeScore: b.home_score as number,
-    awayScore: b.away_score as number,
-    points: (b.points as number) ?? 0,
-    resolved: (b.resolved as boolean) ?? false,
+  const userNameMap: Record<number, string> = {};
+  for (const u of rawUsers ?? []) userNameMap[u.id] = u.name;
+
+  const betsData: GridBet[] = (rawBets ?? []).map((b) => ({
+    userId: b.user_id,
+    userName: userNameMap[b.user_id] ?? "Unknown",
+    matchId: b.match_id,
+    homeScore: b.home_score,
+    awayScore: b.away_score,
+    points: b.points ?? 0,
+    resolved: b.resolved ?? false,
   }));
 
-  // Unique users derived from bets (only players who have placed at least one bet)
+  // Unique users who have placed at least one bet
   const userMap = new Map<number, string>();
   for (const b of betsData) userMap.set(b.userId, b.userName);
   const users = [...userMap.entries()].map(([userId, name]) => ({ userId, name }));

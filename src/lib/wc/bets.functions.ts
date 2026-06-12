@@ -91,6 +91,40 @@ export const getUserBets = createServerFn({ method: "POST" })
     }));
   });
 
+// ── All bets for every user (used by the bet results grid on the ranking page) ─
+export interface GridBet {
+  userId: number;
+  userName: string;
+  matchId: number;
+  homeScore: number;
+  awayScore: number;
+  points: number;
+  resolved: boolean;
+}
+
+export const getAllBetsForGrid = createServerFn({ method: "GET" }).handler(async () => {
+  const { data: bets } = await supabaseAdmin
+    .from("bets")
+    .select("user_id, match_id, home_score, away_score, points, resolved, users(name)");
+
+  const betsData: GridBet[] = (bets ?? []).map((b: any) => ({
+    userId: b.user_id as number,
+    userName: b.users?.name ?? "Unknown",
+    matchId: b.match_id as number,
+    homeScore: b.home_score as number,
+    awayScore: b.away_score as number,
+    points: (b.points as number) ?? 0,
+    resolved: (b.resolved as boolean) ?? false,
+  }));
+
+  // Unique users derived from bets (only players who have placed at least one bet)
+  const userMap = new Map<number, string>();
+  for (const b of betsData) userMap.set(b.userId, b.userName);
+  const users = [...userMap.entries()].map(([userId, name]) => ({ userId, name }));
+
+  return { users, bets: betsData };
+});
+
 // ── Sum of resolved bet points for a user ─────────────────────────────────────
 export const getUserBetPointsTotal = createServerFn({ method: "POST" })
   .inputValidator((d: { userId: number }) => d)

@@ -1,11 +1,14 @@
 import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { getLeaderboard, getCommunityStats } from "@/lib/wc/predictions.functions";
+import { getAllBetsForGrid } from "@/lib/wc/bets.functions";
+import { getSchedule } from "@/lib/wc/schedule.functions";
 import { SiteHeader } from "@/components/wc/SiteHeader";
 import { GROUP_LETTERS } from "@/lib/wc/groupsData";
 import { getFlag } from "@/lib/wc/flags";
-import { Trophy, Users } from "lucide-react";
+import { Trophy, Users, Grid2x2 } from "lucide-react";
 
 export const Route = createFileRoute("/leaderboard")({
   head: () => ({
@@ -139,7 +142,126 @@ function Leaderboard() {
             </section>
           )}
         </div>
+
+        {/* Bet Results Grid */}
+        <BetResultsGrid />
       </main>
     </div>
+  );
+}
+
+function BetResultsGrid() {
+  const fetchGrid = useServerFn(getAllBetsForGrid);
+  const fetchSchedule = useServerFn(getSchedule);
+
+  const { data: gridData } = useQuery({
+    queryKey: ["bets-grid"],
+    queryFn: () => fetchGrid(),
+    refetchInterval: 60_000,
+  });
+
+  const { data: allMatches = [] } = useQuery({
+    queryKey: ["schedule"],
+    queryFn: () => fetchSchedule(),
+    refetchInterval: 60_000,
+  });
+
+  const finishedMatches = useMemo(
+    () =>
+      allMatches
+        .filter((m) => m.status === "FINISHED")
+        .sort((a, b) => a.utcDate.localeCompare(b.utcDate)),
+    [allMatches],
+  );
+
+  if (!gridData || finishedMatches.length === 0) return null;
+
+  const { users, bets } = gridData;
+
+  // userId → matchId → bet
+  const betMap = new Map<number, Map<number, typeof bets[0]>>();
+  for (const bet of bets) {
+    if (!betMap.has(bet.userId)) betMap.set(bet.userId, new Map());
+    betMap.get(bet.userId)!.set(bet.matchId, bet);
+  }
+
+  return (
+    <section className="mt-10">
+      <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+        <Grid2x2 className="h-5 w-5 text-primary" /> Score Predictions Grid
+      </h2>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="text-xs border-collapse">
+            <thead>
+              <tr className="bg-secondary/50">
+                <th className="sticky left-0 bg-secondary/80 backdrop-blur z-10 px-3 py-2 text-left font-semibold min-w-[130px] border-r border-border/60">
+                  Player
+                </th>
+                {finishedMatches.map((m) => {
+                  const hf = getFlag(m.homeTeam);
+                  const af = getFlag(m.awayTeam);
+                  return (
+                    <th
+                      key={m.id}
+                      className="px-1 py-2 text-center min-w-[48px] border-r border-border/30"
+                      title={`${m.homeTeam} vs ${m.awayTeam}`}
+                    >
+                      <div className="flex flex-col items-center gap-px">
+                        {hf ? <span className={`fi fi-${hf} text-sm`} /> : <span className="text-[9px]">{m.homeTeam.slice(0,3)}</span>}
+                        <span className="text-[7px] text-muted-foreground leading-none">vs</span>
+                        {af ? <span className={`fi fi-${af} text-sm`} /> : <span className="text-[9px]">{m.awayTeam.slice(0,3)}</span>}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.userId} className="border-t border-border/30 hover:bg-accent/20 transition-colors">
+                  <td className="sticky left-0 bg-card z-10 px-3 py-1.5 font-medium border-r border-border/60 max-w-[130px] truncate">
+                    {user.name}
+                  </td>
+                  {finishedMatches.map((m) => {
+                    const bet = betMap.get(user.userId)?.get(m.id);
+                    if (!bet) {
+                      return (
+                        <td key={m.id} className="px-1 py-1.5 text-center border-r border-border/20">
+                          <span className="text-[10px] text-muted-foreground/30 font-medium">N/A</span>
+                        </td>
+                      );
+                    }
+                    const cellCls = bet.resolved
+                      ? bet.points === 3
+                        ? "bg-green-500/20 text-green-400"
+                        : bet.points === 1
+                        ? "bg-yellow-500/20 text-yellow-400"
+                        : "bg-red-500/10 text-muted-foreground"
+                      : "text-foreground/50"; // finished but not yet resolved by edge fn
+                    return (
+                      <td
+                        key={m.id}
+                        className={`px-1 py-1.5 text-center border-r border-border/20 ${cellCls}`}
+                      >
+                        <span className="font-bold tabular-nums text-[11px]">
+                          {bet.homeScore}–{bet.awayScore}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground text-center">
+        <span className="text-green-400 font-bold">■</span> Exact (+3) &nbsp;
+        <span className="text-yellow-400 font-bold">■</span> Correct outcome (+1) &nbsp;
+        <span className="text-muted-foreground font-bold">■</span> Wrong (+0) &nbsp;
+        <span className="text-muted-foreground/40">N/A</span> = no bet placed
+      </p>
+    </section>
   );
 }
